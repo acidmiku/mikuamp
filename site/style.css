@@ -532,7 +532,7 @@ img {
 .skin-preview {
   position: absolute;
   width: 400px;
-  left: calc(50% - 253px);
+  left: min(calc(50% - 140px), calc(100% - 720px));
   top: 44px;
   filter: drop-shadow(0 22px 32px #0008);
   transform: rotate(-3deg);
@@ -1120,7 +1120,7 @@ img {
   }
   .skin-preview {
     width: 370px;
-    left: calc(50% - 230px);
+    left: min(calc(50% - 160px), calc(100% - 620px));
     top: 60px;
   }
   .skin-controls {
