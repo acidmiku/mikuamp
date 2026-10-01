@@ -1601,17 +1601,8 @@ img {
   html {
     scroll-behavior: auto;
   }
-  *,
-  *:before,
-  *:after {
-    animation: none !important;
-    transition: none !important;
-  }
   .js .reveal {
     opacity: 1;
     transform: none;
-  }
-  .hero-player {
-    translate: none;
   }
 }

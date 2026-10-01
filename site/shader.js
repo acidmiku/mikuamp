@@ -1,4 +1,4 @@
-// Ray-marched, thin-film torus. No images, libraries or external shader services.
+// Ray-marched thin-film torus, with screen-space edge coverage and HiDPI supersampling.
 export function startIridescence(canvas) {
   const gl = canvas.getContext("webgl", {
     alpha: true,
@@ -39,10 +39,22 @@ export function startIridescence(canvas) {
       uv.x-=.27;
       uv.y+=.015;
       vec3 ro=vec3(0.,0.,5.4),rd=normalize(vec3(uv*3.8,-4.8));
-      float t=0.; bool hit=false; vec3 p;
-      for(int i=0;i<72;i++){p=ro+rd*t;float d=shape(p);if(d<.0014){hit=true;break;}t+=d*.86;if(t>9.)break;}
+      float t=0.,coverageDistance=10000.;vec3 p=ro,closest=ro;
+      for(int i=0;i<96;i++){
+        p=ro+rd*t;
+        float d=shape(p);
+        // A ray covers a pixel-sized cone, rather than an infinitely thin line.
+        // Fractional silhouette coverage prevents binary hit/miss stair steps.
+        float footprint=max(.00015,t*.8/resolution.y);
+        float edge=d/footprint;
+        if(edge<coverageDistance){coverageDistance=edge;closest=p;}
+        if(edge<.18)break;
+        t+=d*.86;
+        if(t>9.)break;
+      }
       vec3 color=vec3(0.);float alpha=0.;
-      if(hit){
+      if(coverageDistance<1.15){
+        p=closest;
         vec3 n=normal(p),r=reflect(rd,n);
         float facing=max(0.,dot(n,-rd));
         float fresnel=pow(1.-facing,2.3);
@@ -52,9 +64,9 @@ export function startIridescence(canvas) {
         color=film*light*(.32+fresnel*.9)+pow(light,vec3(2.))*.3;
         color+=pow(max(0.,dot(n,normalize(vec3(-.5,.8,1.)))),35.)*vec3(.7,.9,.95);
         color=pow(color,vec3(.86));
-        alpha=.92;
+        alpha=.92*(1.-smoothstep(.18,1.15,coverageDistance));
       }
-      gl_FragColor=vec4(color,alpha);
+      gl_FragColor=vec4(color*alpha,alpha);
     }`;
   function compile(type, source) {
     const shader = gl.createShader(type);
@@ -119,8 +131,13 @@ export function startIridescence(canvas) {
     if (!frame && visible) frame = requestAnimationFrame(draw);
   }
   const resize = new ResizeObserver(() => {
-    const bounds = canvas.getBoundingClientRect(),
-      ratio = Math.min(1, 1000 / bounds.width);
+    const bounds = canvas.getBoundingClientRect();
+    // Sample above physical-pixel resolution where practical, never stretch a
+    // fixed 1000px texture across a wide or HiDPI display. Bound total GPU work.
+    const ratio = Math.min(
+      Math.min(window.devicePixelRatio || 1, 2) * 1.25,
+      Math.sqrt(5_000_000 / (bounds.width * bounds.height)),
+    );
     canvas.width = Math.round(bounds.width * ratio);
     canvas.height = Math.round(bounds.height * ratio);
     gl.viewport(0, 0, canvas.width, canvas.height);

@@ -1,8 +1,7 @@
 import { startIridescence } from "./shader.js";
 
 document.documentElement.classList.add("js");
-const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
-let motion = !reduceMotion.matches;
+let motion = true;
 const toggle = document.querySelector("#motion-toggle");
 const hero = document.querySelector(".hero");
 const renderer = startIridescence(document.querySelector("#iridescence"));
@@ -19,7 +18,6 @@ function setMotion(value) {
 }
 setMotion(motion);
 toggle.addEventListener("click", () => setMotion(!motion));
-reduceMotion.addEventListener("change", (event) => setMotion(!event.matches));
 hero.addEventListener("pointermove", (event) => {
   if (!motion || event.pointerType === "touch") return;
   const rect = hero.getBoundingClientRect();
