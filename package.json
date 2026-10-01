@@ -10,7 +10,11 @@
     "tauri": "tauri",
     "desktop": "tauri dev",
     "test": "vitest run",
-    "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml"
+    "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
+    "site:dev": "vite --config site/vite.config.mjs --host 127.0.0.1 --port 4173",
+    "site:build": "vite build --config site/vite.config.mjs",
+    "site:test": "node scripts/site-smoke.mjs",
+    "site:preview": "vite preview --config site/vite.config.mjs --host 127.0.0.1 --port 4174"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.8.0",

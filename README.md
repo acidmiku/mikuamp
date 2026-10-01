@@ -2,6 +2,18 @@
 
 A Windows desktop music player inspired by Winamp 2. Rust handles playback and DSP. Tauri v2 hosts the React controls in WebView2.
 
+[Download for Windows](https://github.com/acidmiku/mikuamp/releases/latest/download/MikuAmp-Setup.exe) · [Website](https://mikuamp.iridescence.tech/) · [Releases](https://github.com/acidmiku/mikuamp/releases)
+
+## Builds and publishing
+
+[Windows build](https://github.com/acidmiku/mikuamp/actions/workflows/windows.yml) tests the frontend and Rust engine, then builds a Windows x64 installer and standalone executable. App changes on `main` and pull requests produce downloadable workflow artifacts. Pushing a matching version tag (for example, `v0.1.0`) publishes both executables and SHA-256 checksums to a GitHub Release. Update `package.json`, `src-tauri/tauri.conf.json`, and `src-tauri/Cargo.toml` together before tagging. Release executables are currently unsigned.
+
+[Publish website](https://github.com/acidmiku/mikuamp/actions/workflows/pages.yml) builds the landing page, runs browser checks against the production output, and deploys it to GitHub Pages when website changes land on `main`. Pull requests build and test without deploying. Actions are pinned to commit SHAs. macOS and Linux packaging is not enabled yet.
+
+The website source is in `site/`. Run `npm run site:dev` to preview it, or `npm run site:build` followed by `npm run site:preview` for a production preview. `SITE_URL=http://127.0.0.1:4174/ npm run site:test` tests that build (set `$env:SITE_URL` in PowerShell). It uses local WebGL shaders, self-hosted Space Grotesk under the included SIL Open Font License, and real app screenshots. `scripts/site-assets.mjs` derives website images from the visual-review captures and bundled skin atlases.
+
+The custom domain `mikuamp.iridescence.tech` is a DNS-only Cloudflare CNAME to `acidmiku.github.io`. GitHub Pages manages HTTPS. Deployment requires no Cloudflare token; DNS credentials are not stored in this repository or in Actions.
+
 ## Run
 
 ```powershell

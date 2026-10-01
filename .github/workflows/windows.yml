@@ -3,26 +3,26 @@ name: Windows build
 on:
   push:
     branches: [main]
-    tags: ['v*']
+    tags: ["v*"]
     paths:
-      - 'src/**'
-      - 'src-tauri/**'
-      - 'public/**'
-      - 'package*.json'
-      - 'tsconfig.json'
-      - 'vite.config.ts'
-      - 'index.html'
-      - '.github/workflows/windows.yml'
+      - "src/**"
+      - "src-tauri/**"
+      - "public/**"
+      - "package*.json"
+      - "tsconfig.json"
+      - "vite.config.ts"
+      - "index.html"
+      - ".github/workflows/windows.yml"
   pull_request:
     paths:
-      - 'src/**'
-      - 'src-tauri/**'
-      - 'public/**'
-      - 'package*.json'
-      - 'tsconfig.json'
-      - 'vite.config.ts'
-      - 'index.html'
-      - '.github/workflows/windows.yml'
+      - "src/**"
+      - "src-tauri/**"
+      - "public/**"
+      - "package*.json"
+      - "tsconfig.json"
+      - "vite.config.ts"
+      - "index.html"
+      - ".github/workflows/windows.yml"
   workflow_dispatch:
 
 permissions:
@@ -41,11 +41,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: '24'
+          node-version: "24"
           cache: npm
       - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87
         with:
-          toolchain: '1.96.0'
+          toolchain: "1.96.0"
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           workspaces: src-tauri -> target

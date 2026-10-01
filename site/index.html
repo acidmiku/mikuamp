@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#090a0f" />
+    <title>MikuAmp — Your desktop deserves a little Miku.</title>
+    <meta
+      name="description"
+      content="A skinnable desktop music player with Winamp spirit, five Miku skins, FLAC and hi-res playback, parametric EQ, and an album library. Download MikuAmp for Windows."
+    />
+    <link rel="canonical" href="https://mikuamp.iridescence.tech/" />
+    <meta property="og:type" content="website" />
+    <meta
+      property="og:title"
+      content="MikuAmp — A little player. A whole lot of personality."
+    />
+    <meta
+      property="og:description"
+      content="Winamp spirit. Miku soul. Your music, on your desktop. Available for Windows."
+    />
+    <meta property="og:url" content="https://mikuamp.iridescence.tech/" />
+    <meta
+      property="og:image"
+      content="https://mikuamp.iridescence.tech/assets/social.jpg"
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" href="./favicon.png" />
+    <link
+      rel="preload"
+      href="./assets/SpaceGrotesk.ttf"
+      as="font"
+      type="font/ttf"
+      crossorigin
+    />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <svg
+      class="icon-definitions"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <symbol id="icon-windows" viewBox="0 0 24 24">
+        <path
+          fill="currentColor"
+          d="M2 3h9v8H2zm11 0h9v8h-9zM2 13h9v8H2zm11 0h9v8h-9z"
+        />
+      </symbol>
+      <symbol id="icon-arrow" viewBox="0 0 24 24">
+        <path
+          d="M5 12h14M13 6l6 6-6 6"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+      </symbol>
+      <symbol id="icon-down" viewBox="0 0 24 24">
+        <path
+          d="M12 3v12m-5-5 5 5 5-5M5 17v4h14v-4"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+      </symbol>
+      <symbol id="icon-github" viewBox="0 0 24 24">
+        <path
+          fill="currentColor"
+          d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.86c-2.78.61-3.37-1.18-3.37-1.18-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.89 1.52 2.34 1.08 2.91.83.09-.65.35-1.08.64-1.33-2.22-.25-4.56-1.11-4.56-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.02a9.58 9.58 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.38.2 2.4.1 2.65.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.69-4.57 4.94.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"
+        />
+      </symbol>
+      <symbol id="icon-apple" viewBox="0 0 24 24">
+        <path
+          fill="currentColor"
+          d="M16.7 2c.1 1.4-.4 2.7-1.2 3.6-.9 1-2.2 1.6-3.5 1.5-.2-1.3.4-2.7 1.2-3.5.9-1 2.4-1.7 3.5-1.6ZM20 17.2c-.5 1.2-.8 1.7-1.5 2.8-.9 1.4-2.1 3-3.7 3-1.4 0-1.8-.9-3.7-.9-1.8 0-2.3.9-3.7.9-1.6 0-2.7-1.4-3.6-2.8C1.3 16.1.8 10.8 3.6 8.6c1.5-1.2 3.6-1.3 5.2-.4.6.3 1.2.7 2.1.7.8 0 1.3-.3 2.2-.7 1.7-.8 3.8-.7 5.2.5-3.5 1.9-2.9 6.8 1.7 8.5Z"
+        />
+      </symbol>
+      <symbol id="icon-linux" viewBox="0 0 24 24">
+        <path
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          d="M8 9V6a4 4 0 0 1 8 0v3c0 2 4 4 4 8 0 2-3 4-8 4s-8-2-8-4c0-4 4-6 4-8Z"
+        />
+        <path d="m9 10 3 2 3-2-3-1Z" fill="currentColor" />
+        <circle cx="10" cy="7" r="1" fill="currentColor" />
+        <circle cx="14" cy="7" r="1" fill="currentColor" />
+      </symbol>
+    </svg>
+
+    <header class="site-header">
+      <a class="brand" href="#" aria-label="MikuAmp home"
+        ><span class="brand-icon">m</span>mikuamp</a
+      >
+      <nav aria-label="Main navigation">
+        <a href="#skins">Skins</a><a href="#player">The player</a>
+        <a
+          href="https://github.com/acidmiku/mikuamp"
+          target="_blank"
+          rel="noopener"
+          class="github-nav"
+          aria-label="MikuAmp on GitHub"
+          ><svg><use href="#icon-github" /></svg
+        ></a>
+        <a class="nav-download" href="#download"
+          >Download <svg><use href="#icon-down" /></svg
+        ></a>
+      </nav>
+    </header>
+
+    <main id="main">
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-light" aria-hidden="true"></div>
+        <canvas id="iridescence" aria-hidden="true"></canvas>
+        <div class="hero-lines" aria-hidden="true"><i></i><i></i><i></i></div>
+        <div class="hero-copy">
+          <h1 id="hero-title">
+            miku<span>amp<span class="period">.</span></span>
+          </h1>
+          <p>Your desktop deserves <br />a little Miku.</p>
+          <a
+            class="button download-link"
+            href="https://github.com/acidmiku/mikuamp/releases/latest/download/MikuAmp-Setup.exe"
+            ><svg><use href="#icon-windows" /></svg>Download for Windows<svg
+              class="button-arrow"
+            >
+              <use href="#icon-arrow" /></svg
+          ></a>
+          <div class="download-meta">
+            Free · Windows 10 / 11 · x64 <span>v0.1.0</span>
+          </div>
+        </div>
+        <div
+          class="hero-player"
+          aria-label="MikuAmp main player, equalizer, and playlist"
+        >
+          <div class="player-orbit" aria-hidden="true"></div>
+          <div class="window-shot shot-playlist">
+            <img
+              src="./assets/classic-playlist.webp"
+              alt="Compact MikuAmp playlist with Japanese and Cyrillic track titles"
+              width="626"
+              height="337"
+            />
+          </div>
+          <div class="window-shot shot-eq">
+            <img
+              src="./assets/classic-equalizer.webp"
+              alt="MikuAmp ten-band equalizer"
+              width="626"
+              height="270"
+            />
+          </div>
+          <div class="window-shot shot-main">
+            <img
+              src="./assets/classic-main.webp"
+              alt="MikuAmp in Classic Teal with Miku artwork and a digital playback display"
+              width="626"
+              height="491"
+              fetchpriority="high"
+            />
+          </div>
+          <span class="hero-spark spark-one" aria-hidden="true">✦</span
+          ><span class="hero-spark spark-two" aria-hidden="true">✧</span>
+        </div>
+        <div class="hero-bottom">
+          <span>Winamp spirit. Miku soul.</span
+          ><a href="#skins" aria-label="Explore MikuAmp"
+            >Meet your new player <span>↓</span></a
+          ><button
+            id="motion-toggle"
+            aria-label="Pause motion"
+            aria-pressed="false"
+          >
+            <span class="motion-bars" aria-hidden="true"
+              ><i></i><i></i><i></i></span
+            ><span class="motion-label">Motion on</span>
+          </button>
+        </div>
+      </section>
+
+      <section
+        class="skins-section section-wrap"
+        id="skins"
+        aria-labelledby="skins-title"
+      >
+        <div class="section-intro reveal">
+          <h2 id="skins-title">Find your <em>Miku.</em></h2>
+          <p>
+            Five built-in skins. Five different moods.<br />Pick the one that
+            feels like you.
+          </p>
+        </div>
+        <div class="skin-theater reveal" data-skin="classic">
+          <div class="skin-aura" aria-hidden="true"></div>
+          <img
+            class="skin-portrait"
+            src="./assets/classic-portrait.webp"
+            alt=""
+            width="650"
+            height="740"
+            loading="lazy"
+          />
+          <div class="skin-preview">
+            <img
+              class="skin-main"
+              src="./assets/classic-main.webp"
+              alt="Classic Teal skin preview"
+              width="626"
+              height="491"
+              loading="lazy"
+            /><img
+              class="skin-eq"
+              src="./assets/classic-equalizer.webp"
+              alt="Matching Classic Teal equalizer"
+              width="626"
+              height="270"
+              loading="lazy"
+            />
+          </div>
+          <div class="skin-controls">
+            <div class="skin-selector" role="group" aria-label="Choose a skin">
+              <button
+                class="skin-choice active"
+                data-skin="classic"
+                aria-pressed="true"
+              >
+                <i style="--swatch: #65e6cf"></i>Classic Teal<span
+                  aria-hidden="true"
+                  >✓</span
+                >
+              </button>
+              <button
+                class="skin-choice"
+                data-skin="sakura"
+                aria-pressed="false"
+              >
+                <i style="--swatch: #f6acc2"></i>Sakura<span aria-hidden="true"
+                  >✓</span
+                >
+              </button>
+              <button
+                class="skin-choice"
+                data-skin="midnight"
+                aria-pressed="false"
+              >
+                <i style="--swatch: #b7a0ff"></i>Midnight<span
+                  aria-hidden="true"
+                  >✓</span
+                >
+              </button>
+              <button class="skin-choice" data-skin="snow" aria-pressed="false">
+                <i style="--swatch: #c6e9ff"></i>Snow<span aria-hidden="true"
+                  >✓</span
+                >
+              </button>
+              <button
+                class="skin-choice"
+                data-skin="terminal"
+                aria-pressed="false"
+              >
+                <i style="--swatch: #82f7b2"></i>39.exe<span aria-hidden="true"
+                  >✓</span
+                >
+              </button>
+            </div>
+            <p>
+              Yours to customize.<br /><a
+                href="https://github.com/acidmiku/mikuamp/blob/main/docs/skins.md"
+                target="_blank"
+                rel="noopener"
+                >Make your own skin <span>↗</span></a
+              >
+            </p>
+          </div>
+          <div class="skin-caption" aria-live="polite">
+            Classic Teal <span>Teal, charcoal, and the original glow.</span>
+          </div>
+        </div>
+      </section>
+
+      <section
+        class="player-section section-wrap"
+        id="player"
+        aria-labelledby="player-title"
+      >
+        <div class="section-intro reveal">
+          <h2 id="player-title">Built around<br /><em>your music.</em></h2>
+          <p>
+            Local files. Familiar controls. A sound you can shape.<br />All in a
+            player that feels at home on your desktop.
+          </p>
+        </div>
+        <div class="sound-feature reveal">
+          <div class="sound-copy">
+            <h3>Every detail.<br />Every decibel.</h3>
+            <p>
+              FLAC and hi-res playback, ten-band parametric EQ, and Tone
+              controls. Get your sound just right.
+            </p>
+            <div class="format-tags">
+              <span>FLAC</span><span>MP3</span><span>ALAC</span><span>WAV</span
+              ><span>AAC</span>
+            </div>
+            <p class="audio-detail">Rust audio engine · WASAPI shared output</p>
+          </div>
+          <div class="sound-visual" aria-hidden="true">
+            <div class="frequency-grid">
+              <span>31</span><span>125</span><span>500</span><span>2k</span
+              ><span>8k</span><span>16k</span>
+            </div>
+            <svg
+              class="sound-curve"
+              viewBox="0 0 700 300"
+              preserveAspectRatio="none"
+            >
+              <defs>
+                <linearGradient id="curve-color">
+                  <stop stop-color="#72efda" />
+                  <stop offset=".45" stop-color="#88b7ff" />
+                  <stop offset="1" stop-color="#e5a6ff" />
+                </linearGradient>
+                <linearGradient id="curve-fill" x2="0" y2="1">
+                  <stop stop-color="#87cbdc" stop-opacity=".25" />
+                  <stop offset="1" stop-color="#87cbdc" stop-opacity="0" />
+                </linearGradient>
+              </defs>
+              <path
+                class="curve-area"
+                d="M0 190C90 190 75 100 175 100S270 214 355 185S450 92 520 125S610 150 700 90V300H0Z"
+                fill="url(#curve-fill)"
+              />
+              <path
+                d="M0 190C90 190 75 100 175 100S270 214 355 185S450 92 520 125S610 150 700 90"
+                fill="none"
+                stroke="url(#curve-color)"
+                stroke-width="2"
+              />
+              <circle cx="175" cy="100" r="5" fill="#8bdded" />
+              <circle cx="355" cy="185" r="5" fill="#a0b9ee" />
+              <circle cx="520" cy="125" r="5" fill="#d1b0ee" />
+            </svg>
+            <div class="spectrum-graphic"></div>
+          </div>
+        </div>
+        <div class="details-grid">
+          <article class="detail-module reveal">
+            <div class="window-diagram" aria-hidden="true">
+              <i><b></b><b></b><b></b></i><i><b></b><b></b></i
+              ><i><b></b><b></b><b></b><b></b></i>
+            </div>
+            <h3>A place for every window.</h3>
+            <p>
+              Drag panels apart. Snap them back. Keep the EQ, playlist, and
+              album library exactly where you want them.
+            </p>
+          </article>
+          <article class="detail-module reveal">
+            <div class="unicode-graphic" aria-hidden="true">
+              <span>初音ミク</span><span>Звёздная пыль</span>
+            </div>
+            <h3>Every character belongs.</h3>
+            <p>
+              Japanese titles. Cyrillic filenames. A whole world of music, with
+              full Unicode support and a crisp HiDPI interface.
+            </p>
+          </article>
+          <article class="detail-module reveal">
+            <div class="album-fan" aria-hidden="true">
+              <img
+                src="./assets/sakura-portrait.webp"
+                alt=""
+                width="130"
+                height="130"
+                loading="lazy"
+              /><img
+                src="./assets/midnight-portrait.webp"
+                alt=""
+                width="130"
+                height="130"
+                loading="lazy"
+              /><img
+                src="./assets/classic-portrait.webp"
+                alt=""
+                width="130"
+                height="130"
+                loading="lazy"
+              />
+            </div>
+            <h3>A home for your albums.</h3>
+            <p>
+              Browse your collection by cover. Artwork comes from your folders
+              and embedded tags. Open the library when you need it.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section
+        class="download-section"
+        id="download"
+        aria-labelledby="download-title"
+      >
+        <div class="download-orb" aria-hidden="true"></div>
+        <div class="section-wrap download-inner">
+          <h2 class="reveal" id="download-title">Hit <em>play.</em></h2>
+          <div class="download-content reveal">
+            <p>A little player. <br />A whole lot of personality.</p>
+            <a
+              class="button download-link"
+              href="https://github.com/acidmiku/mikuamp/releases/latest/download/MikuAmp-Setup.exe"
+              ><svg><use href="#icon-windows" /></svg>Download for Windows<svg
+                class="button-arrow"
+              >
+                <use href="#icon-down" /></svg
+            ></a>
+            <div class="download-meta">Windows 10 / 11 · x64 · v0.1.0</div>
+            <div class="other-platforms">
+              <div>
+                <svg><use href="#icon-apple" /></svg
+                ><span>macOS<small>Coming soon</small></span>
+              </div>
+              <div>
+                <svg><use href="#icon-linux" /></svg
+                ><span>Linux<small>Coming soon</small></span>
+              </div>
+            </div>
+            <a
+              class="release-link"
+              href="https://github.com/acidmiku/mikuamp/releases/latest"
+              >Release notes & portable build <span>↗</span></a
+            >
+          </div>
+        </div>
+      </section>
+    </main>
+    <footer class="site-footer section-wrap">
+      <a class="brand" href="#"><span class="brand-icon">m</span>mikuamp</a>
+      <p>
+        MikuAmp is an independent fan project. Not affiliated with, endorsed by,
+        or sponsored by Crypton Future Media, Inc., Winamp, or HiBy.
+      </p>
+      <a
+        href="https://github.com/acidmiku/mikuamp"
+        target="_blank"
+        rel="noopener"
+        >Made to be yours. <svg><use href="#icon-github" /></svg
+      ></a>
+    </footer>
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>
