@@ -11,4 +11,4 @@ for (const skin of skins) {
     JSON.stringify(pack),
   );
 }
-console.log("Wrote five portable MikuAmp skin packs.");
+console.log("Wrote portable MikuAmp skin packs for every built-in skin.");

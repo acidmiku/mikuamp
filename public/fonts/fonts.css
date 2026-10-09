@@ -1,2 +1,3 @@
-/* System fonts provide Unicode fallback. Optional bundled display face is loaded below. */
+/* System fonts provide Unicode fallback. Optional bundled display faces are loaded below. */
 @font-face{font-family:'DSEG7 Classic';src:url('./DSEG7Classic-Regular.woff2') format('woff2');font-style:normal;font-weight:400;font-display:swap}
+@font-face{font-family:'Space Grotesk';src:url('./SpaceGrotesk.ttf') format('truetype');font-style:normal;font-weight:300 700;font-display:swap}

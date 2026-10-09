@@ -69,15 +69,23 @@ export async function createHarness() {
       { length: 32 },
       (_, i) => (Math.sin(i * 0.8) + 1) * 0.28 + 0.1,
     ),
+    waveform: Array.from({ length: 256 }, (_, i) => Math.sin(i / 6) * 0.5),
+    waveformDuration: 0.032,
+    visualizationRevision: 0,
     outputRate: 48000,
     error: null,
   };
-  const panels = ["main", "equalizer", "playlist", "library", "skins"].map(
-    (label) => ({
-      label,
-      visible: ["main", "equalizer", "playlist"].includes(label),
-    }),
-  );
+  const panels = [
+    "main",
+    "equalizer",
+    "playlist",
+    "library",
+    "skins",
+    "visuals",
+  ].map((label) => ({
+    label,
+    visible: ["main", "equalizer", "playlist"].includes(label),
+  }));
   const pages = new Map();
   const errors = [];
   const calls = [];
@@ -122,11 +130,16 @@ export async function createHarness() {
           return false;
         case "plugin:window|set_always_on_top":
         case "plugin:window|minimize":
+        case "plugin:window|set_focus":
+          return;
+        case "plugin:event|emit":
+          await emit(args.event, args.payload);
           return;
         case "fit_panel": {
           if (args.height) {
             const size = {
-              width: Math.round(455 * args.scale),
+              // At this machine's 125% DPI + WebView zoom, 500 window px are 455 CSS px.
+              width: Math.round((args.width ?? 500) * 0.91 * args.scale),
               height: Math.ceil(args.height),
             };
             if (JSON.stringify(page.viewportSize()) !== JSON.stringify(size))
@@ -135,9 +148,14 @@ export async function createHarness() {
           return;
         }
         case "enqueue":
-          snapshot.queue = args.replace
-            ? [...args.ids]
-            : [...snapshot.queue, ...args.ids];
+          if (args.replace) snapshot.queue = [...args.ids];
+          else if (args.at === null || args.at === undefined)
+            snapshot.queue = [...snapshot.queue, ...args.ids];
+          else {
+            snapshot.queue.splice(args.at, 0, ...args.ids);
+            if (snapshot.index !== null && snapshot.index >= args.at)
+              snapshot.index += args.ids.length;
+          }
           return;
         case "transport": {
           const { action, value } = args;
@@ -154,6 +172,14 @@ export async function createHarness() {
           if (["volume", "shuffle", "repeat"].includes(action))
             snapshot[action] = value;
           if (action === "remove") snapshot.queue.splice(value, 1);
+          if (action === "move") {
+            const [id] = snapshot.queue.splice(value.from, 1);
+            snapshot.queue.splice(value.to, 0, id);
+            const i = snapshot.index;
+            if (i === value.from) snapshot.index = value.to;
+            else if (value.from < i && i <= value.to) snapshot.index = i - 1;
+            else if (value.to <= i && i < value.from) snapshot.index = i + 1;
+          }
           if (action === "clear") snapshot.queue = [];
           return;
         }
@@ -211,9 +237,11 @@ export async function createHarness() {
         ? { width: 710, height: 591 }
         : label === "skins"
           ? { width: 620, height: 610 }
-          : label === "playlist"
-            ? { width: 455, height: 245 }
-            : { width: 455, height: 420 },
+          : label === "visuals"
+            ? { width: 655, height: 582 }
+            : label === "playlist"
+              ? { width: 455, height: 245 }
+              : { width: 455, height: 420 },
     );
     await p.goto(`http://127.0.0.1:1420/?panel=${label}`);
     await expect(p.locator(".titlebar")).toBeVisible();
@@ -229,11 +257,14 @@ export async function createHarness() {
         new StorageEvent("storage", { key: "mikuamp-skin", newValue: id }),
       );
     }, id);
-    await p.waitForTimeout(120);
+    // Let the skin cross-fade (a view transition) finish before capturing.
+    await p.waitForTimeout(450);
   };
   const shot = async (label, path) => {
     await mkdir(resolve(path, ".."), { recursive: true });
     const page = await panel(label);
+    // Background pages do not run animation frames; bring this one forward.
+    await page.bringToFront();
     // Desktop resize IPC is asynchronous. Wait for a settled viewport before
     // asking Chromium to capture, otherwise it can stitch stale raster tiles.
     await page.waitForTimeout(200);

@@ -20,11 +20,14 @@ try {
 
   for (const [name, label] of [
     ["EQ", "equalizer"],
-    ["PL", "playlist"],
-    ["LIB", "library"],
-    ["SKINS", "skins"],
+    [/^Queue/, "playlist"],
+    ["Library", "library"],
+    [/^Skins:/, "skins"],
   ]) {
-    const button = main.getByRole("button", { name, exact: true });
+    const button = main.getByRole("button", {
+      name,
+      exact: typeof name === "string",
+    });
     await button.focus();
     const before = h.panels.find((p) => p.label === label).visible;
     const playing = h.snapshot.playing;
@@ -34,12 +37,10 @@ try {
     await button.press("Space");
     await expect(button).toHaveAttribute("aria-pressed", String(before));
   }
-  await main.getByRole("button", { name: "LIB", exact: true }).click();
-  await lib
-    .getByRole("button", { name: "Close album library", exact: true })
-    .click();
+  await main.getByRole("button", { name: "Library", exact: true }).click();
+  await lib.getByRole("button", { name: "Close library", exact: true }).click();
   await expect(
-    main.getByRole("button", { name: "LIB", exact: true }),
+    main.getByRole("button", { name: "Library", exact: true }),
   ).toHaveAttribute("aria-pressed", "false");
   checked(
     "All panel buttons toggle by keyboard; closing Library synchronizes its button without toggling playback",
@@ -71,14 +72,14 @@ try {
   await expect(rows.nth(1)).toBeFocused();
   await pl.keyboard.press("Tab");
   await expect(
-    pl.getByRole("button", { name: "ADD", exact: true }),
+    pl.getByRole("button", { name: "Add", exact: true }),
   ).toBeFocused();
-  await pl.getByRole("textbox", { name: "Search playlist" }).fill("Afterglow");
+  await pl.getByRole("textbox", { name: "Search queue" }).fill("Afterglow");
   await expect(
-    pl.getByRole("button", { name: "REMOVE", exact: true }),
+    pl.getByRole("button", { name: "Remove", exact: true }),
   ).toBeDisabled();
   await expect(pl.locator('.track-row[tabindex="0"]')).toHaveCount(1);
-  await pl.getByRole("textbox", { name: "Search playlist" }).fill("");
+  await pl.getByRole("textbox", { name: "Search queue" }).fill("");
   checked(
     "Playlist arrows/Home/End, Enter, Delete and single Tab stop; hidden selections cannot be removed",
   );
@@ -87,7 +88,14 @@ try {
     .locator(".track-info")
     .evaluateAll((nodes) => nodes.map((n) => n.getBoundingClientRect().x));
   expect(Math.max(...alignment) - Math.min(...alignment)).toBeLessThan(1);
-  for (const theme of ["classic", "sakura", "midnight", "snow", "terminal"]) {
+  for (const theme of [
+    "classic",
+    "sakura",
+    "midnight",
+    "snow",
+    "terminal",
+    "pencil",
+  ]) {
     await h.skin(theme);
     const contrast = await pl
       .locator(".track-row:not(.current-track) .track-info strong")
@@ -165,7 +173,7 @@ try {
       .selectOption(scale);
     await skins.waitForTimeout(150);
     await expect(
-      skins.getByRole("button", { name: "IMPORT SKIN", exact: true }),
+      skins.getByRole("button", { name: "Import skin", exact: true }),
     ).toBeInViewport();
     for (const card of await skins.locator(".skin-card").all())
       await expect(card).toBeInViewport({ ratio: 1 });
@@ -186,7 +194,7 @@ try {
   await skins
     .locator('.skin-gallery input[type="file"]')
     .setInputFiles("output/skin-packs/snow.mikuamp.json");
-  await expect(skins.locator(".skin-card")).toHaveCount(6);
+  await expect(skins.locator(".skin-card")).toHaveCount(7);
   await skins.reload();
   await expect(skins.locator(".skin-card.chosen")).toHaveAttribute(
     "aria-label",
@@ -197,7 +205,7 @@ try {
     "Skins and Import fit at every scale; custom skin import survives reload",
   );
 
-  await eq.getByRole("button", { name: /BAND 05/ }).click();
+  await eq.getByRole("button", { name: /^Band 5:/ }).click();
   await eq
     .getByRole("spinbutton", { name: "Band frequency", exact: true })
     .fill("1234");
@@ -205,10 +213,95 @@ try {
     .getByRole("spinbutton", { name: "Band frequency", exact: true })
     .press("Enter");
   await expect.poll(() => h.eq.bands[4].frequency).toBe(1234);
-  await eq.getByRole("button", { name: "TONE", exact: true }).click();
+  await eq.getByRole("button", { name: "Tone", exact: true }).click();
   await eq.getByRole("slider", { name: "Temperature", exact: true }).fill("35");
   await expect.poll(() => h.eq.tone[0]).toBe(35);
   checked("PEQ and Tone controls send their edited values");
+
+  await eq.getByRole("button", { name: "Parametric", exact: true }).click();
+  const node = eq.getByRole("button", { name: /^Band 3:/ });
+  const gain = h.eq.bands[2].gain;
+  await node.focus();
+  await node.press("ArrowUp");
+  await expect.poll(() => h.eq.bands[2].gain).toBe(gain + 0.5);
+  await node.press("PageUp");
+  await expect.poll(() => h.eq.bands[2].q).toBe(1.25);
+  await eq.bringToFront();
+  const box = await node.boundingBox();
+  await eq.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await eq.mouse.down();
+  await eq.mouse.move(box.x + box.width / 2 + 40, box.y - 30, { steps: 6 });
+  await eq.mouse.up();
+  await expect.poll(() => h.eq.bands[2].frequency).toBeGreaterThan(125);
+  await expect.poll(() => h.eq.bands[2].gain).toBeGreaterThan(gain + 0.5);
+  checked("EQ nodes nudge by keyboard and reshape the curve by dragging");
+
+  await pl.bringToFront();
+  const order = () => h.snapshot.queue.slice(0, 4);
+  const [a, b, c] = order();
+  const third = pl.getByRole("option").nth(2);
+  const rowBox = await third.boundingBox();
+  await pl.mouse.move(rowBox.x + 60, rowBox.y + rowBox.height / 2);
+  await pl.mouse.down();
+  // Carry the row up by one slot.
+  await pl.mouse.move(rowBox.x + 60, rowBox.y - rowBox.height * 0.6, {
+    steps: 8,
+  });
+  await pl.mouse.up();
+  await expect.poll(() => order().slice(0, 3)).toEqual([a, c, b]);
+  await pl.getByRole("option").nth(1).focus();
+  await pl.keyboard.press("Alt+ArrowDown");
+  await expect.poll(() => order().slice(0, 3)).toEqual([a, b, c]);
+  await expect(pl.getByRole("option").nth(2)).toBeFocused();
+  h.snapshot.index = 0;
+  await expect(pl.locator(".current-track")).toHaveAttribute("data-index", "0");
+  const last = h.snapshot.queue.at(-1);
+  await pl.getByRole("option").last().click({ button: "right" });
+  await pl.getByRole("menuitem", { name: /Play next/ }).click();
+  await expect.poll(() => h.snapshot.queue[1]).toBe(last);
+  checked(
+    "Queue rows reorder by drag and Alt+arrows; context menu queues Play next",
+  );
+
+  await lib.bringToFront();
+  // Let the Library window's 100 ms snapshot catch up with the queue edits.
+  await lib.waitForTimeout(250);
+  const before = [...h.snapshot.queue];
+  await lib
+    .getByRole("button", { name: "Play album After hours", exact: true })
+    .click();
+  await expect.poll(() => h.snapshot.queue.length).toBe(4);
+  await lib.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect.poll(() => h.snapshot.queue).toEqual(before);
+  await lib
+    .getByRole("button", { name: "Play After hours next", exact: true })
+    .click();
+  await expect.poll(() => h.snapshot.queue.length).toBe(before.length + 4);
+  checked(
+    "Playing an album replaces the queue with Undo; Play next inserts after the current track",
+  );
+
+  await main.bringToFront();
+  h.panels.find((p) => p.label === "equalizer").visible = true;
+  h.panels.find((p) => p.label === "playlist").visible = true;
+  await h.emit("panels-changed", h.panels);
+  await main.getByRole("button", { name: "Mini player", exact: true }).click();
+  await expect.poll(() => main.viewportSize().width).toBe(255);
+  expect(h.panels.filter((p) => p.visible && p.label !== "main")).toEqual([]);
+  await expect(main.getByRole("region", { name: "Mini player" })).toBeVisible();
+  await main.keyboard.press("Control+m");
+  await expect.poll(() => main.viewportSize().width).toBe(455);
+  await expect
+    .poll(() =>
+      h.panels
+        .filter((p) => p.visible)
+        .map((p) => p.label)
+        .sort(),
+    )
+    .toEqual(["equalizer", "main", "playlist"]);
+  checked(
+    "Mini player narrows the window, hides panels and restores them on expand",
+  );
 
   h.tracks.splice(0);
   Object.assign(h.snapshot, {
@@ -228,10 +321,7 @@ try {
     main.getByRole("button", { name: "Next track", exact: true }),
   ).toBeDisabled();
   await expect(
-    main.getByRole("button", { name: "Stop", exact: true }),
-  ).toBeDisabled();
-  await expect(
-    pl.getByRole("button", { name: "SAVE LIST", exact: true }),
+    pl.getByRole("button", { name: "Save list", exact: true }),
   ).toBeDisabled();
   await h.shot("main", `${dir}/main-empty.png`);
   await h.shot("playlist", `${dir}/playlist-empty-minimum.png`);

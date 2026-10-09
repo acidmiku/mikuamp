@@ -76,7 +76,12 @@ async fn import_paths(paths: Vec<String>, app: tauri::AppHandle) -> Result<ScanR
     .map_err(|e| e.to_string())?
 }
 #[tauri::command]
-async fn enqueue(ids: Vec<String>, replace: bool, app: tauri::AppHandle) -> Result<(), String> {
+async fn enqueue(
+    ids: Vec<String>,
+    replace: bool,
+    at: Option<usize>,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
     let state = app.state::<AppState>();
     let tracks = {
         let library = state.library.lock().unwrap();
@@ -90,8 +95,12 @@ async fn enqueue(ids: Vec<String>, replace: bool, app: tauri::AppHandle) -> Resu
             })
             .collect::<Result<Vec<_>, _>>()?
     };
+    let command = match at {
+        Some(at) if !replace => Command::Insert(tracks, at),
+        _ => Command::Queue(tracks, replace),
+    };
     let engine = state.engine.clone();
-    tauri::async_runtime::spawn_blocking(move || engine.send(Command::Queue(tracks, replace)))
+    tauri::async_runtime::spawn_blocking(move || engine.send(command))
         .await
         .map_err(|e| e.to_string())?
 }
@@ -117,6 +126,17 @@ async fn transport(
         ),
         "remove" => {
             Command::Remove(value.and_then(|v| v.as_u64()).ok_or("Invalid index")? as usize)
+        }
+        "move" => {
+            let value = value.ok_or("Invalid move")?;
+            let index = |key: &str| {
+                value
+                    .get(key)
+                    .and_then(|n| n.as_u64())
+                    .map(|n| n as usize)
+                    .ok_or("Invalid move")
+            };
+            Command::Move(index("from")?, index("to")?)
         }
         "clear" => Command::Clear,
         "clearError" => Command::ClearError,

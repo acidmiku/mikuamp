@@ -1,4 +1,5 @@
 import { createHarness } from "./visual-harness.mjs";
+import { expect } from "@playwright/test";
 import sharp from "sharp";
 import { mkdir, writeFile } from "node:fs/promises";
 const round = process.argv[2] || "baseline";
@@ -9,7 +10,14 @@ const report = [];
 try {
   for (const label of ["main", "equalizer", "playlist", "library", "skins"])
     await h.panel(label);
-  for (const theme of ["classic", "sakura", "midnight", "snow", "terminal"]) {
+  for (const theme of [
+    "classic",
+    "sakura",
+    "midnight",
+    "snow",
+    "terminal",
+    "pencil",
+  ]) {
     await h.skin(theme);
     for (const label of h.pages.keys()) {
       const p = h.pages.get(label);
@@ -18,15 +26,11 @@ try {
         theme,
         label,
         ...(await p.evaluate(() => {
-          const shell = document.querySelector(".app-shell"),
-            title = document
-              .querySelector(".window-title")
-              .getBoundingClientRect();
+          const shell = document.querySelector(".app-shell");
           return {
             size: [innerWidth, innerHeight],
             horizontalOverflow: shell.scrollWidth - shell.clientWidth,
             verticalOverflow: shell.scrollHeight - shell.clientHeight,
-            titleOffset: Math.abs(title.x + title.width / 2 - innerWidth / 2),
           };
         })),
       });
@@ -65,13 +69,36 @@ try {
     .click();
   await lib.setViewportSize({ width: 510, height: 440 });
   await lib.screenshot({ path: `${dir}/library-long.png` });
+  await lib.setViewportSize({ width: 710, height: 591 });
+  await lib.getByRole("button", { name: "All albums" }).click();
+  await lib.waitForTimeout(500);
+  await lib.bringToFront();
+  await lib.locator(".album-card").nth(1).hover();
+  await lib.waitForTimeout(400);
+  await lib.screenshot({ path: `${dir}/library-hover.png` });
   const eq = await h.panel("equalizer");
-  await eq.getByRole("button", { name: /BAND 05/ }).click();
+  const node = eq.getByRole("button", { name: /^Band 5:/ });
+  await node.hover();
   await eq.waitForTimeout(180);
-  await h.shot("equalizer", `${dir}/equalizer-details.png`);
-  await eq.getByRole("button", { name: "TONE", exact: true }).click();
+  await h.shot("equalizer", `${dir}/equalizer-hover.png`);
+  await eq.getByRole("button", { name: "Tone", exact: true }).click();
   await eq.waitForTimeout(180);
   await h.shot("equalizer", `${dir}/tone.png`);
+  await eq.getByRole("button", { name: "Parametric", exact: true }).click();
+  const pl = await h.panel("playlist");
+  await pl.bringToFront();
+  await pl.getByRole("option").nth(3).click({ button: "right" });
+  await pl.waitForTimeout(250);
+  await pl.screenshot({ path: `${dir}/queue-menu.png` });
+  await pl.keyboard.press("Escape");
+  const main = await h.panel("main");
+  await main.bringToFront();
+  await main.getByRole("button", { name: "Mini player", exact: true }).click();
+  await expect.poll(() => main.viewportSize().width).toBe(255);
+  await main.waitForTimeout(700);
+  await h.shot("main", `${dir}/mini.png`);
+  await main.getByRole("button", { name: "Full player", exact: true }).click();
+  await main.waitForTimeout(600);
   const skins = await h.panel("skins");
   await skins
     .getByRole("combobox", { name: "Interface scale" })
@@ -91,7 +118,6 @@ try {
         overflow: report.filter(
           (r) => r.horizontalOverflow > 1 || r.verticalOverflow > 1,
         ),
-        uncentered: report.filter((r) => r.titleOffset > 1),
       },
       null,
       2,

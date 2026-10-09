@@ -7,6 +7,8 @@ export type Skin = {
   chrome: string;
   preview: string;
   dotMatrix?: boolean;
+  /** Hand-drawn styling: handwritten labels, sketchy outlines, ruled lists. */
+  sketch?: boolean;
   colors: {
     bg: string;
     panel: string;
@@ -115,18 +117,45 @@ export const skins: Skin[] = [
       edge: "#355843",
     },
   },
+  {
+    version: 1,
+    id: "pencil",
+    name: "Pencil",
+    subtitle: "Graphite / notebook",
+    scene: "",
+    chrome: "",
+    preview: "",
+    sketch: true,
+    colors: {
+      bg: "#ece6d8",
+      panel: "#f7f3e8",
+      screen: "#fbf8f0",
+      text: "#2b2925",
+      muted: "#66625a",
+      accent: "#c2382c",
+      secondary: "#2f5aa6",
+      edge: "#8d877a",
+    },
+  },
 ].map((s) => ({
   ...s,
   scene: `/skins/${s.id}/scene.webp`,
   chrome: `/skins/${s.id}/chrome.webp`,
   preview: `/skins/${s.id}/preview.webp`,
 })) as Skin[];
-export function isLightSkin(skin: Skin): boolean {
-  const rgb = skin.colors.panel
+const light = (hex: string) => {
+  const rgb = hex
     .slice(1)
     .match(/../g)!
-    .map((hex) => parseInt(hex, 16));
+    .map((h) => parseInt(h, 16));
   return rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722 > 160;
+};
+export function isLightSkin(skin: Skin): boolean {
+  return light(skin.colors.panel);
+}
+/** A light display ("paper"): the LCD reads in the text colour, not a glow. */
+export function isLightScreen(skin: Skin): boolean {
+  return light(skin.colors.screen);
 }
 export function validateSkin(value: unknown): Skin {
   if (!value || typeof value !== "object")

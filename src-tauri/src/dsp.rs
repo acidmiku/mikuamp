@@ -177,6 +177,22 @@ impl Delay {
     }
 }
 
+// Both views are published together through the existing nonblocking analysis lock.
+pub struct AudioAnalysis {
+    pub spectrum: [f32; 32],
+    pub waveform: [f32; 256],
+    pub waveform_duration: f64,
+}
+impl Default for AudioAnalysis {
+    fn default() -> Self {
+        Self {
+            spectrum: [0.; 32],
+            waveform: [0.; 256],
+            waveform_duration: 0.032,
+        }
+    }
+}
+
 pub struct Processed<S: Source<Item = f32>> {
     input: S,
     settings: Arc<Mutex<EqSettings>>,
@@ -192,12 +208,21 @@ pub struct Processed<S: Source<Item = f32>> {
     fft_fill: usize,
     fft: Arc<dyn Fft<f32>>,
     scratch: Vec<Complex<f32>>,
-    spectrum: Arc<Mutex<Vec<f32>>>,
+    analysis: Arc<Mutex<AudioAnalysis>>,
+    waveform: [f32; 256],
+    waveform_write: usize,
+    waveform_step: usize,
+    waveform_count: usize,
+    waveform_sum: f32,
     gain: f64,
     target_gain: f64,
 }
 impl<S: Source<Item = f32>> Processed<S> {
-    pub fn new(input: S, settings: Arc<Mutex<EqSettings>>, spectrum: Arc<Mutex<Vec<f32>>>) -> Self {
+    pub fn new(
+        input: S,
+        settings: Arc<Mutex<EqSettings>>,
+        analysis: Arc<Mutex<AudioAnalysis>>,
+    ) -> Self {
         let channels = input.channels();
         let rate = input.sample_rate();
         let local = settings.lock().unwrap().clone();
@@ -224,7 +249,12 @@ impl<S: Source<Item = f32>> Processed<S> {
             fft_fill: 0,
             fft,
             scratch,
-            spectrum,
+            analysis,
+            waveform: [0.; 256],
+            waveform_write: 0,
+            waveform_step: ((rate as f64 * 0.032 / 256.).round() as usize).max(1),
+            waveform_count: 0,
+            waveform_sum: 0.,
             gain: target_gain,
             target_gain,
         }
@@ -232,8 +262,8 @@ impl<S: Source<Item = f32>> Processed<S> {
     fn analyze(&mut self) {
         self.fft
             .process_with_scratch(&mut self.fft_input, &mut self.scratch);
-        if let Ok(mut bars) = self.spectrum.try_lock() {
-            for (i, bar) in bars.iter_mut().enumerate() {
+        if let Ok(mut analysis) = self.analysis.try_lock() {
+            for (i, bar) in analysis.spectrum.iter_mut().enumerate() {
                 let low = 32_f32 * (18000_f32 / 32.).powf(i as f32 / 32.);
                 let high = 32_f32 * (18000_f32 / 32.).powf((i + 1) as f32 / 32.);
                 let a = ((low * 2048. / self.rate as f32) as usize).clamp(1, 1023);
@@ -245,6 +275,13 @@ impl<S: Source<Item = f32>> Processed<S> {
                 let value = ((20. * peak.max(1e-6).log10() + 65.) / 65.).clamp(0., 1.);
                 *bar = value.max(*bar * 0.78);
             }
+            // A fixed ring covers roughly 32 ms at every source rate. Averaged
+            // PCM buckets are captured before the FFT's Hann window and copied
+            // in time order, with no allocation on the audio callback.
+            for (i, value) in analysis.waveform.iter_mut().enumerate() {
+                *value = self.waveform[(self.waveform_write + i) % 256];
+            }
+            analysis.waveform_duration = 256. * self.waveform_step as f64 / self.rate as f64;
         }
         self.fft_fill = 0;
     }
@@ -286,6 +323,15 @@ impl<S: Source<Item = f32>> Iterator for Processed<S> {
         self.channel += 1;
         if self.channel == self.channels as usize {
             self.channel = 0;
+            self.waveform_sum += self.mono;
+            self.waveform_count += 1;
+            if self.waveform_count == self.waveform_step {
+                self.waveform[self.waveform_write] =
+                    (self.waveform_sum / self.waveform_count as f32).clamp(-1., 1.);
+                self.waveform_write = (self.waveform_write + 1) % 256;
+                self.waveform_count = 0;
+                self.waveform_sum = 0.;
+            }
             let window =
                 0.5 - 0.5 * (2. * std::f32::consts::PI * self.fft_fill as f32 / 2047.).cos();
             self.fft_input[self.fft_fill] = Complex::new(self.mono * window, 0.);
@@ -350,6 +396,13 @@ impl<S: Source<Item = f32>> Source for Processed<S> {
         self.fft_fill = 0;
         self.channel = 0;
         self.mono = 0.;
+        self.waveform.fill(0.);
+        self.waveform_write = 0;
+        self.waveform_count = 0;
+        self.waveform_sum = 0.;
+        if let Ok(mut analysis) = self.analysis.try_lock() {
+            *analysis = AudioAnalysis::default();
+        }
         Ok(())
     }
 }
@@ -424,11 +477,11 @@ mod tests {
         eq.tone_enabled = true;
         eq.tone = vec![100.; 10];
         eq.bands.iter_mut().for_each(|b| b.gain = 15.);
-        let spectrum = Arc::new(Mutex::new(vec![0.; 32]));
+        let analysis = Arc::new(Mutex::new(AudioAnalysis::default()));
         let source = Processed::new(
             SineWave::new(700.),
             Arc::new(Mutex::new(eq)),
-            spectrum.clone(),
+            analysis.clone(),
         );
         let mut energy = 0.;
         for sample in source.take(48000) {
@@ -436,7 +489,12 @@ mod tests {
             energy += sample * sample;
         }
         assert!(energy > 0.);
-        assert!(spectrum.lock().unwrap().iter().all(|v| v.is_finite()));
+        assert!(analysis
+            .lock()
+            .unwrap()
+            .spectrum
+            .iter()
+            .all(|v| v.is_finite()));
     }
     #[test]
     fn processing_preserves_stereo_channels() {
@@ -444,8 +502,72 @@ mod tests {
         let source = Processed::new(
             input,
             Arc::new(Mutex::new(EqSettings::default())),
-            Arc::new(Mutex::new(vec![0.; 32])),
+            Arc::new(Mutex::new(AudioAnalysis::default())),
         );
         assert_eq!(source.collect::<Vec<_>>(), vec![0.25, -0.5, 0.3, -0.4]);
+    }
+    #[test]
+    fn waveform_is_post_dsp_mono_in_time_order() {
+        let mut settings = EqSettings::default();
+        settings.enabled = true;
+        settings.preamp = -6.;
+        let samples = (0..2048)
+            .flat_map(|n| {
+                let x = (2. * std::f32::consts::PI * n as f32 / 64.).sin();
+                [x * 0.6, x * 0.2]
+            })
+            .collect::<Vec<_>>();
+        let analysis = Arc::new(Mutex::new(AudioAnalysis::default()));
+        let source = Processed::new(
+            rodio::buffer::SamplesBuffer::new(2, 48000, samples),
+            Arc::new(Mutex::new(settings)),
+            analysis.clone(),
+        );
+        let output = source.collect::<Vec<_>>();
+        let analysis = analysis.lock().unwrap();
+        assert!(analysis.spectrum.iter().any(|v| *v > 0.));
+        for (i, value) in analysis.waveform.iter().enumerate() {
+            let first_frame = 510 + i * 6;
+            let expected = (first_frame..first_frame + 6)
+                .map(|frame| (output[frame * 2] + output[frame * 2 + 1]) / 2.)
+                .sum::<f32>()
+                / 6.;
+            assert!((value - expected).abs() < 1e-6);
+        }
+        assert!((analysis.waveform_duration - 0.032).abs() < 1e-9);
+        let peak = analysis.waveform.iter().fold(0_f32, |a, v| a.max(v.abs()));
+        assert!(peak > 0.19 && peak < 0.4 * 10_f32.powf(-6. / 20.));
+    }
+    #[test]
+    fn waveform_sanitizes_nonfinite_samples_and_resets_after_seek() {
+        let mut samples = vec![0.5; 4096];
+        samples[1800] = f32::NAN;
+        samples[1801] = f32::INFINITY;
+        samples[1802] = -f32::INFINITY;
+        samples[1803] = 5.;
+        let analysis = Arc::new(Mutex::new(AudioAnalysis::default()));
+        let mut source = Processed::new(
+            rodio::buffer::SamplesBuffer::new(1, 48000, samples),
+            Arc::new(Mutex::new(EqSettings::default())),
+            analysis.clone(),
+        );
+        for _ in 0..2048 {
+            let value = source.next().unwrap();
+            assert!(value.is_finite() && value.abs() <= 1.);
+        }
+        {
+            let analysis = analysis.lock().unwrap();
+            // Frames 1800..1805 include three sanitized zeros, one clipped
+            // sample and two untouched 0.5 samples, averaged to one bucket.
+            assert!((analysis.waveform[215] - 1. / 3.).abs() < 1e-6);
+            assert!(analysis
+                .waveform
+                .iter()
+                .all(|v| v.is_finite() && v.abs() <= 1.));
+        }
+        source.try_seek(Duration::ZERO).unwrap();
+        let analysis = analysis.lock().unwrap();
+        assert!(analysis.waveform.iter().all(|v| *v == 0.));
+        assert!(analysis.spectrum.iter().all(|v| *v == 0.));
     }
 }

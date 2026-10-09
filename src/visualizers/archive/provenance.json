@@ -1,0 +1,231 @@
+{
+  "repository": "https://github.com/kaganin/iwrzwr-visual-archive",
+  "revision": "003922f7912dd5fa51073c4337686e5be161fb47",
+  "presetCount": 155,
+  "collections": [
+    {
+      "collection": "soundwave-directions",
+      "shape": "strip",
+      "presets": 5,
+      "sourceBytes": 7144,
+      "generatedBytes": 4973,
+      "definitions": 8
+    },
+    {
+      "collection": "geek-soundwaves",
+      "shape": "strip",
+      "presets": 5,
+      "sourceBytes": 8459,
+      "generatedBytes": 6275,
+      "definitions": 17
+    },
+    {
+      "collection": "vector-soundwave-studies",
+      "shape": "strip",
+      "presets": 5,
+      "sourceBytes": 9190,
+      "generatedBytes": 6876,
+      "definitions": 20
+    },
+    {
+      "collection": "sound-machines",
+      "shape": "strip",
+      "presets": 5,
+      "sourceBytes": 11101,
+      "generatedBytes": 8533,
+      "definitions": 21
+    },
+    {
+      "collection": "night-01-raster-protocol",
+      "shape": "strip",
+      "presets": 5,
+      "sourceBytes": 9929,
+      "generatedBytes": 7046,
+      "definitions": 24
+    },
+    {
+      "collection": "night-02-causal-instruments",
+      "shape": "strip",
+      "presets": 5,
+      "sourceBytes": 13758,
+      "generatedBytes": 10718,
+      "definitions": 30
+    },
+    {
+      "collection": "night-03-pocket-machines",
+      "shape": "strip",
+      "presets": 5,
+      "sourceBytes": 11444,
+      "generatedBytes": 8508,
+      "definitions": 25
+    },
+    {
+      "collection": "night-04-calibration-desk",
+      "shape": "strip",
+      "presets": 5,
+      "sourceBytes": 12874,
+      "generatedBytes": 9592,
+      "definitions": 25
+    },
+    {
+      "collection": "night-05-plotter-logic",
+      "shape": "strip",
+      "presets": 5,
+      "sourceBytes": 11131,
+      "generatedBytes": 8038,
+      "definitions": 23
+    },
+    {
+      "collection": "night-06-selective-memory",
+      "shape": "strip",
+      "presets": 5,
+      "sourceBytes": 12300,
+      "generatedBytes": 9489,
+      "definitions": 30
+    },
+    {
+      "collection": "night-07-signal-translations",
+      "shape": "strip",
+      "presets": 5,
+      "sourceBytes": 14258,
+      "generatedBytes": 10994,
+      "definitions": 30
+    },
+    {
+      "collection": "night-08-quiet-telemetry",
+      "shape": "strip",
+      "presets": 5,
+      "sourceBytes": 11964,
+      "generatedBytes": 8917,
+      "definitions": 27
+    },
+    {
+      "collection": "night-09-control-laws",
+      "shape": "strip",
+      "presets": 5,
+      "sourceBytes": 12708,
+      "generatedBytes": 9793,
+      "definitions": 33
+    },
+    {
+      "collection": "night-10-field-operations",
+      "shape": "strip",
+      "presets": 5,
+      "sourceBytes": 13269,
+      "generatedBytes": 10414,
+      "definitions": 29
+    },
+    {
+      "collection": "night-11-shared-resources",
+      "shape": "strip",
+      "presets": 5,
+      "sourceBytes": 14001,
+      "generatedBytes": 11130,
+      "definitions": 31
+    },
+    {
+      "collection": "night-12-inference-engines",
+      "shape": "strip",
+      "presets": 5,
+      "sourceBytes": 15432,
+      "generatedBytes": 12562,
+      "definitions": 39
+    },
+    {
+      "collection": "night-13-conditional-machines",
+      "shape": "strip",
+      "presets": 5,
+      "sourceBytes": 11889,
+      "generatedBytes": 8993,
+      "definitions": 28
+    },
+    {
+      "collection": "night-14-visible-invariants",
+      "shape": "strip",
+      "presets": 5,
+      "sourceBytes": 16046,
+      "generatedBytes": 13203,
+      "definitions": 41
+    },
+    {
+      "collection": "night-15-procedural-marks",
+      "shape": "strip",
+      "presets": 5,
+      "sourceBytes": 15502,
+      "generatedBytes": 12299,
+      "definitions": 47
+    },
+    {
+      "collection": "bloom-ten-studies",
+      "shape": "strip",
+      "presets": 10,
+      "sourceBytes": 6882,
+      "generatedBytes": 4781,
+      "definitions": 9
+    },
+    {
+      "collection": "matrix-direction-studies",
+      "shape": "strip",
+      "presets": 5,
+      "sourceBytes": 5784,
+      "generatedBytes": 3746,
+      "definitions": 7
+    },
+    {
+      "collection": "matrix-routes-ten",
+      "shape": "strip",
+      "presets": 10,
+      "sourceBytes": 7536,
+      "generatedBytes": 5582,
+      "definitions": 7
+    },
+    {
+      "collection": "sound-motion-four-series",
+      "shape": "strip",
+      "presets": 20,
+      "sourceBytes": 17234,
+      "generatedBytes": 8411,
+      "definitions": 7
+    },
+    {
+      "collection": "cell-memory-ten",
+      "shape": "strip",
+      "presets": 10,
+      "sourceBytes": 14246,
+      "generatedBytes": 6039,
+      "definitions": 6
+    },
+    {
+      "collection": "fan-satellites-refined",
+      "shape": "strip",
+      "presets": 2,
+      "sourceBytes": 13934,
+      "generatedBytes": 4620,
+      "definitions": 3
+    },
+    {
+      "collection": "signal-assembly",
+      "shape": "square",
+      "presets": 1,
+      "sourceBytes": 6120,
+      "generatedBytes": 5712,
+      "definitions": 20
+    },
+    {
+      "collection": "phase-mechanics",
+      "shape": "square",
+      "presets": 1,
+      "sourceBytes": 5994,
+      "generatedBytes": 5678,
+      "definitions": 22
+    },
+    {
+      "collection": "orbital-memory",
+      "shape": "square",
+      "presets": 1,
+      "sourceBytes": 5515,
+      "generatedBytes": 5226,
+      "definitions": 11
+    }
+  ]
+}
