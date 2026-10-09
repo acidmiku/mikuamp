@@ -14,7 +14,7 @@ await page.screenshot({
   path: "output/screenshots/player-empty.png",
   fullPage: true,
 });
-await page.getByRole("button", { name: "SKINS", exact: true }).click();
+await page.getByRole("button", { name: /^Skins:/ }).click();
 await page.screenshot({ path: "output/screenshots/skins.png", fullPage: true });
 for (const skin of ["Sakura", "Midnight", "Snow", "39.exe"]) {
   await page
@@ -28,17 +28,17 @@ await page.screenshot({
   path: "output/screenshots/dot-matrix.png",
   fullPage: true,
 });
-await page.getByRole("button", { name: "TONE", exact: true }).click();
+await page.getByRole("button", { name: "Tone", exact: true }).click();
 await page.getByRole("slider", { name: "Temperature", exact: true }).fill("35");
 await page.screenshot({ path: "output/screenshots/tone.png", fullPage: true });
-await page.getByRole("button", { name: "LIB", exact: true }).click();
+await page.getByRole("button", { name: "Library", exact: true }).click();
 await page.screenshot({
   path: "output/screenshots/library-empty.png",
   fullPage: true,
 });
-await page.getByRole("button", { name: "Close album library" }).click();
-await page.getByRole("button", { name: "PARAMETRIC EQ", exact: true }).click();
-await page.getByRole("button", { name: "BAND 05", exact: false }).click();
+await page.getByRole("button", { name: "Close library" }).click();
+await page.getByRole("button", { name: "Parametric", exact: true }).click();
+await page.getByRole("button", { name: /^Band 5:/ }).click();
 await page.getByRole("spinbutton", { name: "Band frequency" }).fill("1234");
 await page.getByRole("spinbutton", { name: "Band frequency" }).press("Enter");
 await page.getByRole("spinbutton", { name: "Band Q" }).fill("0.7");
@@ -55,19 +55,13 @@ if (
 )
   throw new Error("Q editing failed");
 await page.getByRole("button", { name: "Close equalizer" }).click();
-if (
-  await page.getByRole("slider", { name: "Band 1 gain", exact: true }).count()
-)
+if (await page.getByRole("button", { name: /^Band 1:/ }).count())
   throw new Error("EQ panel did not close");
 await page.getByRole("button", { name: "EQ", exact: true }).click();
-if (
-  !(await page
-    .getByRole("slider", { name: "Band 1 gain", exact: true })
-    .count())
-)
+if (!(await page.getByRole("button", { name: /^Band 1:/ }).count()))
   throw new Error("EQ panel did not reopen");
 await page.setViewportSize({ width: 1200, height: 960 });
-await page.getByRole("button", { name: "SKINS", exact: true }).click();
+await page.getByRole("button", { name: /^Skins:/ }).click();
 await page.screenshot({
   path: "output/screenshots/skin-collection-wide.png",
   fullPage: true,
@@ -76,10 +70,10 @@ await page
   .locator('.skin-gallery input[type="file"]')
   .setInputFiles("output/skin-packs/classic.mikuamp.json");
 await page.waitForTimeout(150);
-if ((await page.locator(".skin-card").count()) !== 6)
+if ((await page.locator(".skin-card").count()) !== 7)
   throw new Error("Portable skin import failed");
 await page.reload();
-await page.getByRole("button", { name: "SKINS", exact: true }).click();
+await page.getByRole("button", { name: /^Skins:/ }).click();
 if (
   (await page.locator(".skin-card.chosen strong").textContent()) !==
   "Classic Teal"

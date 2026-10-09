@@ -4,162 +4,99 @@ import {
   useRef,
   useState,
   type CSSProperties,
-  type ReactNode,
+  type WheelEvent,
 } from "react";
 import {
   Activity,
-  ArrowDown,
   Check,
-  ChevronDown,
-  Disc3,
   FolderOpen,
   LibraryBig,
   ListMusic,
+  Maximize2,
+  Minimize2,
   Minus,
-  Music2,
-  Palette,
   Pause,
   Pin,
   Play,
-  Plus,
   Repeat,
   Repeat1,
-  Search,
-  Settings2,
   Shuffle,
   SkipBack,
   SkipForward,
   SlidersHorizontal,
-  Square,
-  Trash2,
-  Upload,
+  Undo2,
+  Volume1,
   Volume2,
   VolumeX,
   X,
 } from "lucide-react";
-import { open, save } from "@tauri-apps/plugin-dialog";
+import { open } from "@tauri-apps/plugin-dialog";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { listen } from "@tauri-apps/api/event";
+import { emit, listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import * as api from "./bridge";
 import {
-  albumsFrom,
   defaultEq,
   emptySnapshot,
-  hz,
   time,
-  type Band,
   type Eq,
   type Snapshot,
   type Track,
 } from "./types";
-import { filters, response, toneControls } from "./audioMath";
 import {
+  isLightScreen,
   isLightSkin,
   loadSkins,
   skins,
-  validateSkin,
   type Skin,
 } from "./skins";
+import { usePresence, withTransition } from "./motion";
+import {
+  Cover,
+  IconButton,
+  isNative,
+  panelName,
+  Quality,
+  SeekBar,
+  Spectrum,
+  Titlebar,
+  type Panel,
+} from "./ui";
+import { Equalizer } from "./Equalizer";
+import { Queue } from "./Queue";
+import { Library, type QueueMode } from "./Library";
+import { SkinGallery } from "./SkinGallery";
+import { Visualizer } from "./visualizers/Visualizer";
+import { VisualBrowser } from "./visualizers/VisualBrowser";
 
-const panelName = new URLSearchParams(location.search).get("panel") || "main";
-const isNative = api.native;
 if (isNative) document.documentElement.classList.add("native");
-type Panel = "library" | "equalizer" | "playlist" | "skins";
 const labels: Record<Panel, string> = {
-  library: "ALBUM LIBRARY",
+  library: "LIBRARY",
   equalizer: "EQUALIZER",
-  playlist: "PLAYLIST",
+  playlist: "QUEUE",
   skins: "SKINS",
+  visuals: "VISUALS",
 };
-function IconButton({
-  label,
-  children,
+const panels = Object.keys(labels) as Panel[];
+const albumId = (t: Track) => `${t.albumArtist}\0${t.album}`;
+type Toast = { text: string; undo?: () => Promise<unknown> };
+
+function PlayButton({
+  playing,
   onClick,
-  active,
-  disabled = false,
-  className = "",
 }: {
-  label: string;
-  children: ReactNode;
+  playing: boolean;
   onClick: () => void;
-  active?: boolean;
-  disabled?: boolean;
-  className?: string;
 }) {
   return (
-    <button
-      className={`icon-button ${active ? "active" : ""} ${className}`}
-      title={label}
-      aria-label={label}
-      aria-pressed={active}
-      disabled={disabled}
+    <IconButton
+      label={playing ? "Pause" : "Play"}
+      className={`play-button ${playing ? "is-playing" : ""}`}
       onClick={onClick}
     >
-      {children}
-    </button>
-  );
-}
-function Titlebar({ title, onClose }: { title: string; onClose?: () => void }) {
-  return (
-    <header className="titlebar" data-tauri-drag-region>
-      <span className="mini-mark" data-tauri-drag-region>
-        m
-      </span>
-      <div className="title-center" data-tauri-drag-region>
-        <span className="title-lines" data-tauri-drag-region />
-        <span className="window-title" data-tauri-drag-region>
-          {title}
-        </span>
-        <span className="title-lines" data-tauri-drag-region />
-      </div>
-      <div className="title-actions">
-        {!onClose && isNative && panelName === "main" && (
-          <IconButton
-            label="Minimize"
-            onClick={() => void getCurrentWindow().minimize()}
-          >
-            <Minus size={12} />
-          </IconButton>
-        )}
-        <IconButton
-          label={`Close ${title.toLowerCase()}`}
-          onClick={
-            onClose ||
-            (() => {
-              if (isNative) void getCurrentWindow().close();
-            })
-          }
-        >
-          <X size={12} />
-        </IconButton>
-      </div>
-    </header>
-  );
-}
-function Quality({ track }: { track?: Track }) {
-  return (
-    <span
-      className={`quality quality-${track?.quality || "SQ"}`}
-      title="LQ: lossy · SQ: lossless up to 1500 kbps · HR: lossless above 1500 kbps"
-    >
-      {track?.quality || "—"}
-    </span>
-  );
-}
-function Spectrum({ bars, playing }: { bars: number[]; playing: boolean }) {
-  return (
-    <div
-      className={`spectrum ${playing ? "playing" : ""}`}
-      aria-label="Live audio spectrum"
-    >
-      {bars.map((n, i) => (
-        <span key={i}>
-          <i style={{ height: `${Math.max(2, n * 100)}%` }} />
-          <b style={{ bottom: `${Math.min(96, Math.max(3, n * 100 + 3))}%` }} />
-        </span>
-      ))}
-    </div>
+      <Play className="glyph-play" size={20} fill="currentColor" />
+      <Pause className="glyph-pause" size={20} fill="currentColor" />
+    </IconButton>
   );
 }
 
@@ -178,19 +115,37 @@ export default function App() {
       localStorage.getItem("mikuamp-pl-visible") !== "false",
     ),
     [showLibrary, setShowLibrary] = useState(false),
-    [showSkins, setShowSkins] = useState(false);
+    [showSkins, setShowSkins] = useState(false),
+    [showVisuals, setShowVisuals] = useState(false),
+    [vizExpanded, setVizExpanded] = useState(false);
   const [modal, setModal] = useState<Panel | null>(null),
     [busy, setBusy] = useState(false),
-    [notice, setNotice] = useState(""),
+    [toast, setToast] = useState<Toast | null>(null),
     [error, setError] = useState(""),
     [pinned, setPinned] = useState(false),
     [scale, setScale] = useState(
       Number(localStorage.getItem("mikuamp-scale")) || 1,
-    );
+    ),
+    [mini, setMini] = useState(
+      panelName === "main" && localStorage.getItem("mikuamp-mini") === "true",
+    ),
+    [remaining, setRemaining] = useState(
+      localStorage.getItem("mikuamp-time") === "remaining",
+    ),
+    [volumeFlash, setVolumeFlash] = useState(false),
+    [albumRequest, setAlbumRequest] = useState<{
+      id: string;
+      at: number;
+    } | null>(null);
   const browserInput = useRef<HTMLInputElement>(null),
-    eqTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    eqTimer = useRef<ReturnType<typeof setTimeout> | null>(null),
+    volumeTimer = useRef<ReturnType<typeof setTimeout> | null>(null),
+    restorePanels = useRef(false);
   const shellRef = useRef<HTMLDivElement>(null);
   const unmutedVolume = useRef(0.65);
+  const toastView = usePresence(!!toast);
+  const lastToast = useRef<Toast | null>(null);
+  if (toast) lastToast.current = toast;
   useEffect(() => {
     if (snapshot.volume > 0) unmutedVolume.current = snapshot.volume;
   }, [snapshot.volume]);
@@ -212,6 +167,10 @@ export default function App() {
       void run(() => api.command(action, value));
     },
     [run],
+  );
+  const notify = useCallback(
+    (text: string, undo?: () => Promise<unknown>) => setToast({ text, undo }),
+    [],
   );
   const refresh = useCallback(
     async () => setTracks(await api.getLibrary()),
@@ -248,6 +207,12 @@ export default function App() {
         listen("library-changed", () => void refresh()),
         listen<Eq>("eq-changed", (event) => setEq(event.payload)),
       );
+      if (panelName === "library")
+        unlisteners.push(
+          listen<string>("show-album", (event) =>
+            setAlbumRequest({ id: event.payload, at: Date.now() }),
+          ),
+        );
     }
     return () => {
       alive = false;
@@ -262,6 +227,7 @@ export default function App() {
       setShowPlaylist(panels.some((p) => p.label === "playlist" && p.visible));
       setShowLibrary(panels.some((p) => p.label === "library" && p.visible));
       setShowSkins(panels.some((p) => p.label === "skins" && p.visible));
+      setShowVisuals(panels.some((p) => p.label === "visuals" && p.visible));
     };
     const off = listen<{ label: string; visible: boolean }[]>(
       "panels-changed",
@@ -279,16 +245,27 @@ export default function App() {
     const fit = () => {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
-        void run(() =>
-          invoke("fit_panel", {
+        void run(async () => {
+          await invoke("fit_panel", {
+            width: panelName === "main" && mini ? 280 : null,
             height:
               panelName === "main" || panelName === "equalizer"
                 ? shell.getBoundingClientRect().height
                 : null,
             scale,
             pixelRatio: window.devicePixelRatio,
-          }),
-        );
+          });
+          // Panels come back only once the player has its full width again.
+          if (restorePanels.current && !mini) {
+            restorePanels.current = false;
+            const saved: Panel[] = JSON.parse(
+              localStorage.getItem("mikuamp-mini-panels") || "[]",
+            );
+            for (const label of saved.filter((p) => panels.includes(p)))
+              await invoke("set_panel_visible", { label, visible: true });
+            await getCurrentWindow().setFocus();
+          }
+        });
       });
     };
     const observer = new ResizeObserver(fit);
@@ -300,10 +277,11 @@ export default function App() {
       window.removeEventListener("resize", fit);
       cancelAnimationFrame(frame);
     };
-  }, [scale, run]);
+  }, [scale, run, mini]);
   useEffect(() => {
     const sync = (e: StorageEvent) => {
-      if (e.key === "mikuamp-skin") setSkinId(e.newValue || "classic");
+      if (e.key === "mikuamp-skin")
+        withTransition(() => setSkinId(e.newValue || "classic"));
       if (e.key === "mikuamp-custom-skins") setSkinList(loadSkins());
       if (e.key === "mikuamp-scale") setScale(Number(e.newValue) || 1);
     };
@@ -315,10 +293,10 @@ export default function App() {
     localStorage.setItem("mikuamp-pl-visible", String(showPlaylist));
   }, [showEq, showPlaylist]);
   useEffect(() => {
-    if (!notice) return;
-    const t = setTimeout(() => setNotice(""), 4500);
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), toast.undo ? 7000 : 4500);
     return () => clearTimeout(t);
-  }, [notice]);
+  }, [toast]);
   const importFiles = useCallback(
     async (paths: string[], queue = true) => {
       setBusy(true);
@@ -327,7 +305,7 @@ export default function App() {
         await refresh();
         if (queue && result.tracks.length)
           await api.enqueue(result.tracks.map((t) => t.id));
-        setNotice(
+        notify(
           `${result.tracks.length} track${result.tracks.length === 1 ? "" : "s"} added`,
         );
         if (result.warnings.length)
@@ -340,7 +318,7 @@ export default function App() {
         setBusy(false);
       }
     },
-    [refresh],
+    [refresh, notify],
   );
   useEffect(() => {
     if (!isNative) return;
@@ -386,6 +364,43 @@ export default function App() {
     },
     [importFiles, run],
   );
+  const isOpen = (panel: Panel) =>
+    panel === "equalizer"
+      ? showEq
+      : panel === "playlist"
+        ? showPlaylist
+        : isNative
+          ? { library: showLibrary, skins: showSkins, visuals: showVisuals }[
+              panel
+            ]
+          : modal === panel;
+  const toggleMini = useCallback(async () => {
+    if (panelName !== "main") return;
+    if (!mini) {
+      // Remember which panels were open, tuck them away, then narrow the player.
+      const openPanels = isNative ? panels.filter(isOpen) : [];
+      localStorage.setItem("mikuamp-mini-panels", JSON.stringify(openPanels));
+      if (isNative)
+        await Promise.all(
+          openPanels.map((label) =>
+            invoke("set_panel_visible", { label, visible: false }),
+          ),
+        );
+      setModal(null);
+    } else restorePanels.current = true;
+    localStorage.setItem("mikuamp-mini", String(!mini));
+    withTransition(() => setMini(!mini));
+    // isOpen reads the same visibility state listed here.
+  }, [mini, showEq, showPlaylist, showLibrary, showSkins, showVisuals, modal]);
+  const changeVolume = useCallback(
+    (volume: number) => {
+      act("volume", Math.min(1, Math.max(0, Math.round(volume * 100) / 100)));
+      setVolumeFlash(true);
+      if (volumeTimer.current) clearTimeout(volumeTimer.current);
+      volumeTimer.current = setTimeout(() => setVolumeFlash(false), 900);
+    },
+    [act],
+  );
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (
@@ -401,6 +416,15 @@ export default function App() {
         void chooseFiles();
         return;
       }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "m") {
+        e.preventDefault();
+        void toggleMini();
+        return;
+      }
+      if (e.key === "MediaPlayPause")
+        return act(snapshot.playing ? "pause" : "play");
+      if (e.key === "MediaTrackNext") return act("next");
+      if (e.key === "MediaTrackPrevious") return act("previous");
       if (e.key === "Escape") setModal(null);
       if ((e.target as HTMLElement).closest("button,a,[role=option]")) return;
       if (e.code === "Space") {
@@ -411,7 +435,6 @@ export default function App() {
         act("seek", Math.min(current.duration, snapshot.position + 5));
       else if (e.code === "ArrowLeft")
         act("seek", Math.max(0, snapshot.position - 5));
-      else if (e.key === "Escape") setModal(null);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -422,6 +445,7 @@ export default function App() {
     current,
     act,
     chooseFiles,
+    toggleMini,
   ]);
   const updateEq = (next: Eq) => {
     setEq(next);
@@ -441,58 +465,113 @@ export default function App() {
     else if (panel === "playlist") setShowPlaylist(visible);
     else setModal(visible ? panel : null);
   };
-  const libraryOpen = isNative ? showLibrary : modal === "library";
-  const skinsOpen = isNative ? showSkins : modal === "skins";
   const chooseSkin = (s: Skin) => {
-    setSkinId(s.id);
+    withTransition(() => setSkinId(s.id));
     localStorage.setItem("mikuamp-skin", s.id);
-    setNotice(`${s.name} skin applied`);
+    notify(`${s.name} skin applied`);
   };
-  const queueTracks = (ts: Track[], play = false) =>
+  /** Restores a queue captured before a destructive change. */
+  const restorer = (before: Snapshot) => async () => {
+    await api.enqueue(before.queue, true);
+    if (before.index !== null && before.playing) {
+      await api.command("play", before.index);
+      if (before.position > 1) await api.command("seek", before.position);
+    }
+  };
+  const queueTracks = (ts: Track[], mode: QueueMode, start = 0) =>
     void run(async () => {
-      await api.enqueue(
-        ts.map((t) => t.id),
-        play,
-      );
-      if (play) await api.command("play", 0);
-      else setNotice(`${ts.length} tracks queued`);
+      const ids = ts.map((t) => t.id);
+      const n = `${ts.length} track${ts.length === 1 ? "" : "s"}`;
+      if (mode === "play") {
+        const before = snapshot;
+        await api.enqueue(ids, true);
+        await api.command("play", start);
+        if (before.queue.length)
+          notify("Now playing; queue replaced", restorer(before));
+      } else if (mode === "next") {
+        await api.enqueue(
+          ids,
+          false,
+          snapshot.index === null ? 0 : snapshot.index + 1,
+        );
+        notify(`${n} will play next`);
+      } else {
+        await api.enqueue(ids);
+        notify(`${n} added to the queue`);
+      }
     });
+  const removeAt = (index: number) =>
+    void run(async () => {
+      const id = snapshot.queue[index];
+      const title = tracks.find((t) => t.id === id)?.title;
+      await api.command("remove", index);
+      notify(`Removed ${title ? `“${title}”` : "track"}`, () =>
+        api.enqueue([id], false, index),
+      );
+    });
+  const clearQueue = () =>
+    void run(async () => {
+      const before = snapshot;
+      await api.command("clear");
+      notify("Queue cleared", restorer(before));
+    });
+  const showAlbum = (track: Track) =>
+    void run(async () => {
+      if (isNative) {
+        await invoke("set_panel_visible", { label: "library", visible: true });
+        await emit("show-album", albumId(track));
+      } else {
+        setAlbumRequest({ id: albumId(track), at: Date.now() });
+        setModal("library");
+      }
+    });
+  const onWheelVolume = (e: WheelEvent) => {
+    if (!e.deltaY) return;
+    changeVolume(snapshot.volume + (e.deltaY < 0 ? 0.02 : -0.02));
+  };
   const skinStyle = {
     ...Object.fromEntries(
       Object.entries(selectedSkin.colors).map(([k, v]) => [`--${k}`, v]),
     ),
     "--scene": `url("${selectedSkin.scene}")`,
     "--chrome": `url("${selectedSkin.chrome}")`,
+    "--skin-preview": `url("${selectedSkin.preview}")`,
     "--scale": scale,
   } as CSSProperties;
-  const sharedPanel = (panel: Panel, detached = false) => {
+  const sharedPanel = (panel: Panel) => {
     if (panel === "equalizer")
       return (
         <Equalizer
           eq={eq}
           update={updateEq}
-          expanded={detached && !isNative}
+          spectrum={snapshot.spectrum}
           native={isNative}
         />
       );
     if (panel === "playlist")
       return (
-        <Playlist
+        <Queue
           tracks={tracks}
           snapshot={snapshot}
           act={act}
           openFiles={() => void chooseFiles()}
           run={run}
+          remove={removeAt}
+          clear={clearQueue}
+          showAlbum={showAlbum}
         />
       );
+    if (panel === "visuals")
+      return <VisualBrowser snapshot={snapshot} skin={selectedSkin.id} />;
     if (panel === "library")
       return (
-        <AlbumLibrary
+        <Library
           tracks={tracks}
           current={current}
           queue={queueTracks}
           addFolder={() => void chooseFiles(true, false)}
           busy={busy}
+          request={albumRequest}
         />
       );
     return (
@@ -518,10 +597,379 @@ export default function App() {
       />
     );
   };
+
+  const duration = current?.duration || 0;
+  const togglePlay = () =>
+    snapshot.queue.length
+      ? act(snapshot.playing ? "pause" : "play")
+      : void chooseFiles();
+  const cycleRepeat = () =>
+    act(
+      "repeat",
+      snapshot.repeat === "off"
+        ? "all"
+        : snapshot.repeat === "all"
+          ? "one"
+          : "off",
+    );
+  const toggleRemaining = () => {
+    localStorage.setItem("mikuamp-time", remaining ? "total" : "remaining");
+    setRemaining(!remaining);
+  };
+  const endTime = remaining
+    ? `−${time(Math.max(0, duration - snapshot.position))}`
+    : time(duration);
+  // Keyed by track, not queue slot, so reordering the queue does not replay
+  // the track-change animations.
+  const trackKey = current?.id ?? "none";
+  const resampled =
+    current?.sampleRate &&
+    snapshot.outputRate &&
+    current.sampleRate !== snapshot.outputRate
+      ? `→ ${+(snapshot.outputRate / 1000).toFixed(1)} kHz`
+      : "";
+  const formatLine = current
+    ? [
+        current.format,
+        current.bitDepth && current.quality !== "LQ"
+          ? `${current.bitDepth}-bit`
+          : `${current.bitrate || "—"} kbps`,
+        current.sampleRate
+          ? `${+(current.sampleRate / 1000).toFixed(1)} kHz`
+          : "",
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : "READY TO PLAY";
+  const upNext = (() => {
+    if (snapshot.index === null || !snapshot.queue.length) return null;
+    if (snapshot.repeat === "one") return current;
+    if (snapshot.shuffle) return "shuffle";
+    const next = snapshot.index + 1;
+    const id =
+      next < snapshot.queue.length
+        ? snapshot.queue[next]
+        : snapshot.repeat === "all"
+          ? snapshot.queue[0]
+          : null;
+    return id ? tracks.find((t) => t.id === id) : null;
+  })();
+  const VolumeIcon = !snapshot.volume
+    ? VolumeX
+    : snapshot.volume < 0.5
+      ? Volume1
+      : Volume2;
+  const volumeText = Math.round(snapshot.volume * 100);
+  const transportCore = (
+    <>
+      <IconButton
+        label="Previous track"
+        disabled={!snapshot.queue.length}
+        onClick={() => act("previous")}
+      >
+        <SkipBack size={17} fill="currentColor" />
+      </IconButton>
+      <PlayButton playing={snapshot.playing} onClick={togglePlay} />
+      <IconButton
+        label="Next track"
+        disabled={!snapshot.queue.length}
+        onClick={() => act("next")}
+      >
+        <SkipForward size={17} fill="currentColor" />
+      </IconButton>
+    </>
+  );
+  const shuffleButton = (
+    <IconButton
+      label="Shuffle"
+      active={snapshot.shuffle}
+      className="mode-button"
+      onClick={() => act("shuffle", !snapshot.shuffle)}
+    >
+      <Shuffle size={15} />
+    </IconButton>
+  );
+  const repeatButton = (
+    <IconButton
+      label={`Repeat: ${snapshot.repeat}`}
+      active={snapshot.repeat !== "off"}
+      className="mode-button"
+      onClick={cycleRepeat}
+    >
+      {snapshot.repeat === "one" ? <Repeat1 size={15} /> : <Repeat size={15} />}
+    </IconButton>
+  );
+  const seekRow = (
+    <div className="seek-row">
+      <span>{time(snapshot.position)}</span>
+      <SeekBar
+        position={snapshot.position}
+        playing={snapshot.playing}
+        duration={duration}
+        onSeek={(s) => act("seek", s)}
+      />
+      <button
+        className="time-toggle"
+        title={remaining ? "Show total time" : "Show time remaining"}
+        onClick={toggleRemaining}
+      >
+        {endTime}
+      </button>
+    </div>
+  );
+  const windowButtons = isNative && (
+    <>
+      <IconButton
+        label="Minimize"
+        onClick={() => void getCurrentWindow().minimize()}
+      >
+        <Minus size={13} />
+      </IconButton>
+      <IconButton label="Close" onClick={() => void getCurrentWindow().close()}>
+        <X size={13} />
+      </IconButton>
+    </>
+  );
+  const volumeFlashView = volumeFlash && (
+    <div className="volume-flash" aria-live="polite">
+      VOL {String(volumeText).padStart(2, "0")}
+    </div>
+  );
+
+  const player = (
+    <section
+      className={`player panel ${snapshot.playing ? "is-playing" : ""}`}
+      aria-label="Player"
+    >
+      <header className="titlebar player-titlebar" data-tauri-drag-region>
+        <span className="wordmark" data-tauri-drag-region>
+          miku<span data-tauri-drag-region>amp</span>
+        </span>
+        <span className="title-fill" data-tauri-drag-region />
+        <div className="title-actions">
+          <IconButton
+            label="Open music files"
+            onClick={() => void chooseFiles()}
+          >
+            <FolderOpen size={14} />
+          </IconButton>
+          <IconButton
+            label="Always on top"
+            active={pinned}
+            onClick={() => {
+              setPinned(!pinned);
+              if (isNative)
+                void run(() => getCurrentWindow().setAlwaysOnTop(!pinned));
+            }}
+          >
+            <Pin size={13} />
+          </IconButton>
+          <IconButton label="Mini player" onClick={() => void toggleMini()}>
+            <Minimize2 size={13} />
+          </IconButton>
+          {windowButtons}
+        </div>
+      </header>
+      <div
+        className={`player-scene ${vizExpanded ? "viz-expanded" : ""}`}
+        onWheel={onWheelVolume}
+      >
+        <div className="scene-shade" />
+        <div className="display">
+          <div className="clock-row">
+            <Cover
+              key={`cover-${trackKey}`}
+              cover={current?.cover}
+              title={current?.title || "MikuAmp"}
+              className="display-cover"
+            />
+            <span className="digital-time" key={`time-${trackKey}`}>
+              {time(snapshot.position).padStart(5, "0")}
+            </span>
+            <span className="viz-title" key={`title-${trackKey}`}>
+              {current ? `${current.title} — ${current.artist}` : ""}
+            </span>
+            <div className="channel-label">
+              {current?.channels === 1 ? "MONO" : "STEREO"}
+              <span>{eq.enabled || eq.toneEnabled ? "DSP ON" : "DSP OFF"}</span>
+            </div>
+            {volumeFlashView}
+          </div>
+          <Visualizer
+            snapshot={snapshot}
+            trackId={current?.id}
+            skin={selectedSkin.id}
+            onExpandedChange={setVizExpanded}
+            onBrowse={() => togglePanel("visuals", true)}
+          />
+          <div className="format-line">
+            <Quality track={current} />
+            <span>{formatLine}</span>
+            <span title="Resampled to the Windows mix rate (shared mode)">
+              {resampled}
+            </span>
+          </div>
+        </div>
+        <div className="track-caption" key={`caption-${trackKey}`}>
+          <h1 title={current?.title}>{current?.title || "No track loaded"}</h1>
+          <p
+            title={current ? `${current.artist} — ${current.album}` : undefined}
+          >
+            {current
+              ? `${current.artist} — ${current.album}`
+              : "Press play to open music, or drop files here"}
+          </p>
+        </div>
+      </div>
+      {seekRow}
+      <div className="transport">
+        <div className="transport-buttons">
+          {shuffleButton}
+          {transportCore}
+          {repeatButton}
+        </div>
+        <div className="volume-control">
+          <IconButton
+            label={snapshot.volume ? "Mute" : "Unmute"}
+            onClick={() =>
+              act("volume", snapshot.volume ? 0 : unmutedVolume.current)
+            }
+          >
+            <VolumeIcon size={15} />
+          </IconButton>
+          <input
+            aria-label="Volume"
+            type="range"
+            min="0"
+            max="1"
+            step=".01"
+            value={snapshot.volume}
+            style={{ "--progress": `${volumeText}%` } as CSSProperties}
+            onChange={(e) => act("volume", +e.target.value)}
+          />
+          <span>{volumeText}</span>
+        </div>
+      </div>
+      <nav className="panel-switches" aria-label="Panels">
+        <button
+          className={showEq ? "selected" : ""}
+          aria-pressed={showEq}
+          title={showEq ? "Hide equalizer" : "Show equalizer"}
+          onClick={() => togglePanel("equalizer", !showEq)}
+        >
+          <SlidersHorizontal size={13} />
+          EQ
+        </button>
+        <button
+          className={showPlaylist ? "selected" : ""}
+          aria-pressed={showPlaylist}
+          aria-label={
+            snapshot.queue.length
+              ? `Queue, ${snapshot.queue.length} tracks`
+              : "Queue"
+          }
+          title={showPlaylist ? "Hide queue" : "Show queue"}
+          onClick={() => togglePanel("playlist", !showPlaylist)}
+        >
+          <ListMusic size={13} />
+          Queue
+          {!!snapshot.queue.length && (
+            <i key={snapshot.queue.length}>{snapshot.queue.length}</i>
+          )}
+        </button>
+        <button
+          className={isOpen("library") ? "selected" : ""}
+          aria-pressed={isOpen("library")}
+          title={isOpen("library") ? "Hide library" : "Show library"}
+          onClick={() => togglePanel("library", !isOpen("library"))}
+        >
+          <LibraryBig size={13} />
+          Library
+        </button>
+        <span />
+        <button
+          className={`skins-button ${isOpen("skins") ? "selected" : ""}`}
+          aria-pressed={isOpen("skins")}
+          aria-label={`Skins: ${selectedSkin.name}`}
+          title={isOpen("skins") ? "Hide skins" : "Show skins"}
+          onClick={() => togglePanel("skins", !isOpen("skins"))}
+        >
+          <i className="skin-dot" />
+          {selectedSkin.name}
+        </button>
+      </nav>
+    </section>
+  );
+
+  const miniPlayer = (
+    <section
+      className={`player mini-player panel ${snapshot.playing ? "is-playing" : ""}`}
+      aria-label="Mini player"
+    >
+      <header className="titlebar player-titlebar" data-tauri-drag-region>
+        <span className="wordmark" data-tauri-drag-region>
+          miku<span data-tauri-drag-region>amp</span>
+        </span>
+        <span className="title-fill" data-tauri-drag-region />
+        <div className="title-actions">
+          <IconButton label="Full player" onClick={() => void toggleMini()}>
+            <Maximize2 size={13} />
+          </IconButton>
+          {windowButtons}
+        </div>
+      </header>
+      <div className="player-scene" onWheel={onWheelVolume}>
+        <div className="scene-shade" />
+        <div className="display mini-display">
+          <Cover
+            key={`cover-${trackKey}`}
+            cover={current?.cover}
+            title={current?.title || "MikuAmp"}
+            className="display-cover"
+          />
+          <span className="digital-time" key={`time-${trackKey}`}>
+            {time(snapshot.position).padStart(5, "0")}
+          </span>
+          <Spectrum bars={snapshot.spectrum} count={8} />
+          {volumeFlashView}
+        </div>
+      </div>
+      <div className="mini-caption" key={`caption-${trackKey}`}>
+        <strong title={current?.title}>
+          {current?.title || "No track loaded"}
+        </strong>
+        <span title={current?.artist}>
+          {current ? current.artist : "Press play to open music"}
+        </span>
+      </div>
+      {seekRow}
+      <div className="mini-transport">
+        {shuffleButton}
+        {transportCore}
+        {repeatButton}
+      </div>
+      <footer className="mini-next">
+        {upNext === "shuffle" ? (
+          <span>Shuffle is on</span>
+        ) : upNext ? (
+          <span title={`${upNext.title} — ${upNext.artist}`}>
+            <b>UP NEXT</b> {upNext.title}
+            <small> · {upNext.artist}</small>
+          </span>
+        ) : (
+          <span>
+            {snapshot.queue.length ? "End of queue" : "Queue is empty"}
+          </span>
+        )}
+      </footer>
+    </section>
+  );
+
+  const shownToast = toast || lastToast.current;
   return (
     <div
       ref={shellRef}
-      className={`app-shell ${isNative ? `native-shell native-${panelName}` : "preview-shell"} ${selectedSkin.dotMatrix ? "dot-matrix" : ""} ${panelName === "main" ? "main-shell" : "detached-shell"} ${isLightSkin(selectedSkin) ? "light-skin" : ""}`}
+      className={`app-shell ${isNative ? `native-shell native-${panelName}` : "preview-shell"} ${selectedSkin.dotMatrix ? "dot-matrix" : ""} ${panelName === "main" ? "main-shell" : "detached-shell"} ${mini ? "is-mini" : ""} ${isLightSkin(selectedSkin) ? "light-skin" : ""} ${isLightScreen(selectedSkin) ? "paper-screen" : ""} ${selectedSkin.sketch ? "sketch" : ""}`}
       style={skinStyle}
     >
       <input
@@ -537,7 +985,7 @@ export default function App() {
               const added = await api.importBrowser(files);
               await refresh();
               await api.enqueue(added.map((t) => t.id));
-              setNotice(`${added.length} tracks added`);
+              notify(`${added.length} tracks added`);
             });
           }
           e.target.value = "";
@@ -545,255 +993,16 @@ export default function App() {
       />
       {panelName === "main" ? (
         <>
-          <section className="player panel">
-            <Titlebar title="MIKUAMP" />
-            <div className="player-toolbar">
-              <span className="wordmark">
-                miku<span>amp</span>
-                <i>01</i>
-              </span>
-              <IconButton
-                label="Always on top"
-                active={pinned}
-                onClick={() => {
-                  setPinned(!pinned);
-                  if (isNative)
-                    void run(() => getCurrentWindow().setAlwaysOnTop(!pinned));
-                }}
-              >
-                <Pin size={12} />
-              </IconButton>
-            </div>
-            <div className="player-scene">
-              <div className="scene-shade" />
-              <div className="listening-label">
-                <i className={snapshot.playing ? "lit" : ""} />
-                {snapshot.playing
-                  ? "PLAYING"
-                  : snapshot.position > 0
-                    ? "PAUSED"
-                    : "STOPPED"}
-              </div>
-              <div className="display">
-                <div className="clock-row">
-                  <span className="play-indicator">
-                    {snapshot.playing ? (
-                      <Play size={14} fill="currentColor" />
-                    ) : (
-                      <Pause size={14} />
-                    )}
-                  </span>
-                  <span className="digital-time">
-                    {time(snapshot.position).padStart(5, "0")}
-                  </span>
-                  <div className="channel-label">
-                    {current?.channels === 1 ? "MONO" : "STEREO"}
-                    <span>
-                      {eq.enabled || eq.toneEnabled ? "DSP ON" : "EQ OFF"}
-                    </span>
-                  </div>
-                </div>
-                <Spectrum bars={snapshot.spectrum} playing={snapshot.playing} />
-                <div className="format-line">
-                  <Quality track={current} />
-                  <span>
-                    {current
-                      ? `${current.format} · ${current.bitrate || "—"} kbps`
-                      : "READY TO PLAY"}
-                  </span>
-                  <span>
-                    {current?.sampleRate
-                      ? `${+(current.sampleRate / 1000).toFixed(1)} kHz`
-                      : ""}
-                  </span>
-                </div>
-              </div>
-              <div className="track-caption">
-                <h1 title={current?.title}>
-                  {current?.title || "No track loaded"}
-                </h1>
-                <p
-                  title={
-                    current ? `${current.artist} / ${current.album}` : undefined
-                  }
-                >
-                  {current
-                    ? `${current.artist}  /  ${current.album}`
-                    : "Open files or drop music here"}
-                </p>
-              </div>
-            </div>
-            <div className="seek-row">
-              <span>{time(snapshot.position)}</span>
-              <input
-                aria-label="Seek"
-                type="range"
-                min="0"
-                max={current?.duration || 1}
-                step=".1"
-                value={Math.min(snapshot.position, current?.duration || 1)}
-                disabled={!current}
-                onChange={(e) => act("seek", +e.target.value)}
-                style={
-                  {
-                    "--progress": `${current ? (snapshot.position / current.duration) * 100 : 0}%`,
-                  } as CSSProperties
-                }
-              />
-              <span>{time(current?.duration || 0)}</span>
-            </div>
-            <div className="transport">
-              <div className="transport-buttons">
-                <IconButton
-                  label="Previous track"
-                  disabled={!snapshot.queue.length}
-                  onClick={() => act("previous")}
-                >
-                  <SkipBack size={17} fill="currentColor" />
-                </IconButton>
-                <IconButton
-                  label={snapshot.playing ? "Pause" : "Play"}
-                  className="play-button"
-                  onClick={() =>
-                    snapshot.queue.length
-                      ? act(snapshot.playing ? "pause" : "play")
-                      : void chooseFiles()
-                  }
-                >
-                  {snapshot.playing ? (
-                    <Pause size={20} fill="currentColor" />
-                  ) : (
-                    <Play size={20} fill="currentColor" />
-                  )}
-                </IconButton>
-                <IconButton
-                  label="Stop"
-                  disabled={!snapshot.queue.length}
-                  onClick={() => act("stop")}
-                >
-                  <Square size={14} fill="currentColor" />
-                </IconButton>
-                <IconButton
-                  label="Next track"
-                  disabled={!snapshot.queue.length}
-                  onClick={() => act("next")}
-                >
-                  <SkipForward size={17} fill="currentColor" />
-                </IconButton>
-                <span className="transport-divider" />
-                <IconButton
-                  label="Open music files"
-                  onClick={() => void chooseFiles()}
-                >
-                  <FolderOpen size={17} />
-                </IconButton>
-              </div>
-              <div className="volume-control">
-                <IconButton
-                  label={snapshot.volume ? "Mute" : "Unmute"}
-                  onClick={() =>
-                    act("volume", snapshot.volume ? 0 : unmutedVolume.current)
-                  }
-                >
-                  {snapshot.volume ? (
-                    <Volume2 size={15} />
-                  ) : (
-                    <VolumeX size={15} />
-                  )}
-                </IconButton>
-                <input
-                  aria-label="Volume"
-                  type="range"
-                  min="0"
-                  max="1"
-                  step=".01"
-                  value={snapshot.volume}
-                  onChange={(e) => act("volume", +e.target.value)}
-                />
-                <span>{Math.round(snapshot.volume * 100)}</span>
-              </div>
-            </div>
-            <div className="panel-switches">
-              <button
-                className={showEq ? "selected" : ""}
-                aria-pressed={showEq}
-                title={showEq ? "Hide equalizer" : "Show equalizer"}
-                onClick={() => togglePanel("equalizer", !showEq)}
-              >
-                <SlidersHorizontal size={12} />
-                EQ
-              </button>
-              <button
-                className={showPlaylist ? "selected" : ""}
-                aria-pressed={showPlaylist}
-                title={showPlaylist ? "Hide playlist" : "Show playlist"}
-                onClick={() => togglePanel("playlist", !showPlaylist)}
-              >
-                <ListMusic size={12} />
-                PL
-              </button>
-              <button
-                className={libraryOpen ? "selected" : ""}
-                aria-pressed={libraryOpen}
-                title={
-                  libraryOpen ? "Hide album library" : "Show album library"
-                }
-                onClick={() => togglePanel("library", !libraryOpen)}
-              >
-                <LibraryBig size={12} />
-                LIB
-              </button>
-              <span />
-              <IconButton
-                label="Shuffle"
-                active={snapshot.shuffle}
-                onClick={() => act("shuffle", !snapshot.shuffle)}
-              >
-                <Shuffle size={14} />
-              </IconButton>
-              <IconButton
-                label={`Repeat: ${snapshot.repeat}`}
-                active={snapshot.repeat !== "off"}
-                onClick={() =>
-                  act(
-                    "repeat",
-                    snapshot.repeat === "off"
-                      ? "all"
-                      : snapshot.repeat === "all"
-                        ? "one"
-                        : "off",
-                  )
-                }
-              >
-                {snapshot.repeat === "one" ? (
-                  <Repeat1 size={14} />
-                ) : (
-                  <Repeat size={14} />
-                )}
-              </IconButton>
-              <button
-                className={`skins-button ${skinsOpen ? "selected" : ""}`}
-                aria-pressed={skinsOpen}
-                title={skinsOpen ? "Hide skins" : "Show skins"}
-                onClick={() => togglePanel("skins", !skinsOpen)}
-              >
-                <Palette size={13} />
-                SKINS
-              </button>
-            </div>
-          </section>
-          {!isNative && showEq && (
+          {mini ? miniPlayer : player}
+          {!isNative && !mini && showEq && (
             <section className="panel equalizer-panel">
               <Titlebar title="EQUALIZER" onClose={() => setShowEq(false)} />
               {sharedPanel("equalizer")}
             </section>
           )}
-          {!isNative && showPlaylist && (
+          {!isNative && !mini && showPlaylist && (
             <section className="panel playlist-panel">
-              <Titlebar
-                title="PLAYLIST"
-                onClose={() => setShowPlaylist(false)}
-              />
+              <Titlebar title="QUEUE" onClose={() => setShowPlaylist(false)} />
               {sharedPanel("playlist")}
             </section>
           )}
@@ -801,7 +1010,7 @@ export default function App() {
       ) : (
         <section className={`panel detached-panel detached-${panelName}`}>
           <Titlebar title={labels[panelName as Panel] || "MIKUAMP"} />
-          {sharedPanel(panelName as Panel, true)}
+          {sharedPanel(panelName as Panel)}
         </section>
       )}
       {busy && (
@@ -810,10 +1019,27 @@ export default function App() {
           Reading your music…
         </div>
       )}
-      {notice && !busy && (
-        <div className="toast">
+      {toastView.mounted && shownToast && !busy && (
+        <div
+          key={shownToast.text}
+          className={`toast ${toastView.leaving ? "leaving" : ""}`}
+          role="status"
+        >
           <Check size={14} />
-          {notice}
+          <span>{shownToast.text}</span>
+          {shownToast.undo && (
+            <button
+              className="toast-action"
+              onClick={() => {
+                const undo = shownToast.undo!;
+                setToast(null);
+                void run(undo);
+              }}
+            >
+              <Undo2 size={13} />
+              Undo
+            </button>
+          )}
         </div>
       )}
       {(error || snapshot.error) && (
@@ -845,807 +1071,10 @@ export default function App() {
             aria-label={labels[modal]}
           >
             <Titlebar title={labels[modal]} onClose={() => setModal(null)} />
-            {sharedPanel(modal, true)}
+            {sharedPanel(modal)}
           </section>
         </div>
       )}
-    </div>
-  );
-}
-
-function Equalizer({
-  eq,
-  update,
-  expanded,
-  native,
-}: {
-  eq: Eq;
-  update: (e: Eq) => void;
-  expanded: boolean;
-  native: boolean;
-}) {
-  const [tab, setTab] = useState<"peq" | "tone">("peq"),
-    [selected, setSelected] = useState(4),
-    [detail, setDetail] = useState(expanded),
-    [preset, setPreset] = useState("Custom");
-  const band = eq.bands[selected];
-  const setBand = (patch: Partial<Band>) => {
-    setPreset("Custom");
-    update({
-      ...eq,
-      bands: eq.bands.map((b, i) => (i === selected ? { ...b, ...patch } : b)),
-    });
-  };
-  const applyPreset = (name: string) => {
-    const gains: Record<string, number[]> = {
-      Flat: Array(10).fill(0),
-      "Bass lift": [5, 4, 2, 0, 0, 0, 0, 0, 0, 0],
-      "Vocal focus": [-2, -2, -1, 0, 2, 3, 2, 1, 0, -1],
-      "Soft treble": [0, 0, 0, 0, 0, 0, -1, -2, -4, -4],
-    };
-    if (!gains[name]) return;
-    setPreset(name);
-    update({
-      ...eq,
-      enabled: true,
-      preamp: name === "Flat" ? 0 : -5,
-      bands: defaultEq().bands.map((b, i) => ({ ...b, gain: gains[name][i] })),
-    });
-  };
-  const active = tab === "peq" ? eq.enabled : eq.toneEnabled;
-  return (
-    <div className={`equalizer ${expanded ? "expanded" : ""}`}>
-      <div className="eq-toolbar">
-        <div className="segmented">
-          <button
-            className={tab === "peq" ? "active" : ""}
-            onClick={() => setTab("peq")}
-          >
-            PARAMETRIC EQ
-          </button>
-          <button
-            className={tab === "tone" ? "active" : ""}
-            onClick={() => setTab("tone")}
-          >
-            TONE
-          </button>
-        </div>
-        <button
-          className={`toggle ${active ? "on" : ""}`}
-          aria-label={`Enable ${tab === "peq" ? "parametric EQ" : "Tone"}`}
-          aria-pressed={active}
-          onClick={() =>
-            update({
-              ...eq,
-              ...(tab === "peq"
-                ? { enabled: !eq.enabled }
-                : { toneEnabled: !eq.toneEnabled }),
-            })
-          }
-        >
-          <i />
-          {active ? "ON" : "OFF"}
-        </button>
-      </div>
-      {!native && (
-        <div className="preview-note">
-          DSP runs in the desktop app. These controls preview its settings.
-        </div>
-      )}
-      {tab === "peq" ? (
-        <>
-          <div className="eq-sliders">
-            <div className="eq-axis">
-              <span>+15</span>
-              <span>0 dB</span>
-              <span>−15</span>
-            </div>
-            <div className="eq-band preamp-band">
-              <output>
-                {eq.preamp > 0 ? "+" : ""}
-                {eq.preamp}
-              </output>
-              <input
-                type="range"
-                className="vertical-slider"
-                aria-label="Preamp"
-                min="-18"
-                max="12"
-                step=".5"
-                value={eq.preamp}
-                onChange={(e) => update({ ...eq, preamp: +e.target.value })}
-              />
-              <button onClick={() => update({ ...eq, preamp: 0 })}>PRE</button>
-            </div>
-            <div className="eq-divider" />
-            {eq.bands.map((b, i) => (
-              <div
-                key={i}
-                className={`eq-band ${selected === i ? "selected-band" : ""}`}
-              >
-                <output>
-                  {b.gain > 0 ? "+" : ""}
-                  {b.gain}
-                </output>
-                <input
-                  aria-label={`Band ${i + 1} gain`}
-                  type="range"
-                  className="vertical-slider"
-                  min="-15"
-                  max="15"
-                  step=".5"
-                  value={b.gain}
-                  onPointerDown={() => setSelected(i)}
-                  onChange={(e) => {
-                    setPreset("Custom");
-                    update({
-                      ...eq,
-                      bands: eq.bands.map((v, n) =>
-                        n === i ? { ...v, gain: +e.target.value } : v,
-                      ),
-                    });
-                  }}
-                />
-                <button
-                  title={`Edit band ${i + 1}`}
-                  onClick={() => {
-                    setSelected(i);
-                    setDetail(true);
-                  }}
-                >
-                  {hz(b.frequency)}
-                </button>
-              </div>
-            ))}
-          </div>
-          <div className="eq-bottom">
-            <button className="text-button" onClick={() => setDetail(!detail)}>
-              <Settings2 size={12} />
-              BAND {String(selected + 1).padStart(2, "0")}
-              <ChevronDown size={11} />
-            </button>
-            <select
-              aria-label="EQ preset"
-              value={preset}
-              onChange={(e) => applyPreset(e.target.value)}
-            >
-              {[
-                "Custom",
-                "Flat",
-                "Bass lift",
-                "Vocal focus",
-                "Soft treble",
-              ].map((n) => (
-                <option key={n}>{n}</option>
-              ))}
-            </select>
-            <button
-              className="text-button"
-              onClick={() => {
-                setPreset("Flat");
-                update({ ...eq, preamp: 0, bands: defaultEq().bands });
-              }}
-            >
-              RESET
-            </button>
-          </div>
-          {detail && (
-            <div className="band-details">
-              <label>
-                FREQUENCY
-                <NumberField
-                  label="Band frequency"
-                  min={20}
-                  max={20000}
-                  step={1}
-                  value={band.frequency}
-                  onCommit={(frequency) => setBand({ frequency })}
-                />
-              </label>
-              <label>
-                Q
-                <NumberField
-                  label="Band Q"
-                  min={0.1}
-                  max={12}
-                  step={0.1}
-                  value={band.q}
-                  onCommit={(q) => setBand({ q })}
-                />
-              </label>
-              <label>
-                FILTER
-                <select
-                  aria-label="Band filter type"
-                  value={band.kind}
-                  onChange={(e) =>
-                    setBand({ kind: e.target.value as Band["kind"] })
-                  }
-                >
-                  <option value="peak">Peak</option>
-                  <option value="lowShelf">Low shelf</option>
-                  <option value="highShelf">High shelf</option>
-                </select>
-              </label>
-            </div>
-          )}
-        </>
-      ) : (
-        <>
-          <div className="tone-list">
-            {toneControls.map(([name, left, right], i) => (
-              <label className="tone-row" key={name}>
-                <span>
-                  {name}
-                  <output>
-                    {eq.tone[i] > 0 ? "+" : ""}
-                    {eq.tone[i]}
-                  </output>
-                </span>
-                <div>
-                  <small>{left}</small>
-                  <input
-                    aria-label={name}
-                    type="range"
-                    min="-100"
-                    max="100"
-                    step="1"
-                    value={eq.tone[i]}
-                    onChange={(e) =>
-                      update({
-                        ...eq,
-                        tone: eq.tone.map((n, j) =>
-                          j === i ? +e.target.value : n,
-                        ),
-                      })
-                    }
-                    onDoubleClick={() =>
-                      update({
-                        ...eq,
-                        tone: eq.tone.map((n, j) => (j === i ? 0 : n)),
-                      })
-                    }
-                  />
-                  <small>{right}</small>
-                </div>
-              </label>
-            ))}
-          </div>
-          <div className="tone-note">
-            <button
-              className="text-button"
-              onClick={() => update({ ...eq, tone: Array(10).fill(0) })}
-            >
-              RESET
-            </button>
-          </div>
-        </>
-      )}
-      {(expanded || detail || tab === "tone") && <ResponseCurve eq={eq} />}
-    </div>
-  );
-}
-function NumberField({
-  label,
-  value,
-  min,
-  max,
-  step,
-  onCommit,
-}: {
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  step: number;
-  onCommit: (value: number) => void;
-}) {
-  const [draft, setDraft] = useState(String(value));
-  useEffect(() => setDraft(String(value)), [value]);
-  const commit = () => {
-    const number = Number(draft);
-    const next =
-      draft.trim() && Number.isFinite(number)
-        ? Math.min(max, Math.max(min, number))
-        : value;
-    setDraft(String(next));
-    onCommit(next);
-  };
-  return (
-    <input
-      aria-label={label}
-      type="number"
-      min={min}
-      max={max}
-      step={step}
-      value={draft}
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={commit}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") e.currentTarget.blur();
-      }}
-    />
-  );
-}
-
-function ResponseCurve({ eq }: { eq: Eq }) {
-  const bands = filters(eq);
-  const points = Array.from({ length: 180 }, (_, i) => {
-    const f = 20 * 1000 ** (i / 179);
-    const db = response(bands, f) + (eq.enabled ? eq.preamp : 0);
-    return `${((i / 179) * 440).toFixed(2)},${Math.max(2, Math.min(78, 40 - db * 1.4)).toFixed(2)}`;
-  }).join(" ");
-  return (
-    <div className="response-graph">
-      <svg
-        viewBox="0 0 440 80"
-        role="img"
-        aria-label="Combined EQ and Tone frequency response before automatic headroom"
-      >
-        <path
-          d="M0 20H440M0 40H440M0 60H440M102 0V80M249 0V80M395 0V80"
-          className="graph-grid"
-        />
-        <polyline
-          points={points}
-          fill="none"
-          stroke="var(--accent)"
-          strokeWidth="1.8"
-        />
-      </svg>
-      <div>
-        <span>20 Hz</span>
-        <span>100</span>
-        <span>1k</span>
-        <span>10k</span>
-        <span>20k</span>
-      </div>
-    </div>
-  );
-}
-
-function Playlist({
-  tracks,
-  snapshot,
-  act,
-  openFiles,
-  run,
-}: {
-  tracks: Track[];
-  snapshot: Snapshot;
-  act: (a: string, v?: unknown) => void;
-  openFiles: () => void;
-  run: (fn: () => Promise<unknown>) => Promise<void>;
-}) {
-  const [search, setSearch] = useState(""),
-    [selected, setSelected] = useState<number | null>(null);
-  const listRef = useRef<HTMLDivElement>(null);
-  const searchRef = useRef<HTMLInputElement>(null);
-  const afterRemove = useRef<{ length: number; index: number } | null>(null);
-  const list = snapshot.queue
-    .map((id, index) => ({ track: tracks.find((t) => t.id === id), index }))
-    .filter((x): x is { track: Track; index: number } => !!x.track)
-    .filter(({ track }) =>
-      `${track.title} ${track.artist}`
-        .toLocaleLowerCase()
-        .includes(search.toLocaleLowerCase()),
-    );
-  const total = snapshot.queue.reduce(
-    (n, id) => n + (tracks.find((t) => t.id === id)?.duration || 0),
-    0,
-  );
-  const selectedVisible = list.some((entry) => entry.index === selected);
-  const tabIndex = selectedVisible
-    ? selected
-    : (list.find((entry) => entry.index === snapshot.index)?.index ??
-      list[0]?.index);
-  const focusRow = (index: number) => {
-    const row = listRef.current?.querySelector<HTMLElement>(
-      `[data-index="${index}"]`,
-    );
-    row?.focus({ preventScroll: true });
-    row?.scrollIntoView({ block: "nearest" });
-  };
-  const remove = (index: number) => {
-    afterRemove.current = { length: snapshot.queue.length, index };
-    act("remove", index);
-  };
-  useEffect(() => {
-    const pending = afterRemove.current;
-    if (!pending || snapshot.queue.length === pending.length) return;
-    afterRemove.current = null;
-    const next =
-      list.find((entry) => entry.index >= pending.index) ?? list.at(-1);
-    setSelected(next?.index ?? null);
-    if (next) focusRow(next.index);
-    else searchRef.current?.focus();
-  }, [snapshot.queue, list]);
-  const exportList = () =>
-    void run(async () => {
-      if (isNative) {
-        const path = await save({
-          defaultPath: "MikuAmp.m3u8",
-          filters: [{ name: "UTF-8 playlist", extensions: ["m3u8"] }],
-        });
-        if (path) await invoke("export_playlist", { path });
-      } else {
-        const text =
-          "#EXTM3U\n" +
-          list
-            .map(
-              ({ track }) =>
-                `#EXTINF:${Math.floor(track.duration)},${track.artist} - ${track.title}\n${track.path}`,
-            )
-            .join("\n");
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(
-          new Blob([text], { type: "audio/x-mpegurl" }),
-        );
-        a.download = "MikuAmp.m3u8";
-        a.click();
-        URL.revokeObjectURL(a.href);
-      }
-    });
-  return (
-    <div className="playlist">
-      <div className="playlist-meta">
-        <span>
-          {String(snapshot.queue.length).padStart(2, "0")} TRACKS <b> / </b>
-          {time(total)}
-        </span>
-        <label className="search-field">
-          <Search size={12} />
-          <input
-            ref={searchRef}
-            aria-label="Search playlist"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Find a track"
-          />
-        </label>
-      </div>
-      <div
-        ref={listRef}
-        className="track-list"
-        role="listbox"
-        aria-label="Playlist tracks"
-      >
-        {list.length ? (
-          list.map(({ track: t, index }) => (
-            <div
-              key={`${t.id}-${index}`}
-              role="option"
-              aria-selected={selected === index}
-              title={`${t.artist} — ${t.title}\n${t.album}`}
-              className={`track-row ${snapshot.index === index ? "current-track" : ""} ${selected === index ? "selected-track" : ""}`}
-              data-index={index}
-              tabIndex={index === tabIndex ? 0 : -1}
-              onFocus={() => setSelected(index)}
-              onClick={() => setSelected(index)}
-              onDoubleClick={() => act("play", index)}
-              onKeyDown={(e) => {
-                const position = list.findIndex(
-                  (entry) => entry.index === index,
-                );
-                let next = position;
-                if (e.key === "ArrowDown")
-                  next = Math.min(list.length - 1, position + 1);
-                else if (e.key === "ArrowUp") next = Math.max(0, position - 1);
-                else if (e.key === "Home") next = 0;
-                else if (e.key === "End") next = list.length - 1;
-                else if (e.key === "Enter") act("play", index);
-                else if (e.code === "Space")
-                  act(
-                    snapshot.index === index && snapshot.playing
-                      ? "pause"
-                      : "play",
-                    index,
-                  );
-                else if (e.key === "Delete") remove(index);
-                else return;
-                e.preventDefault();
-                e.stopPropagation();
-                if (next !== position) focusRow(list[next].index);
-              }}
-            >
-              <span className="track-index">
-                {snapshot.index === index && snapshot.playing ? (
-                  <span className="mini-playing" aria-label="Playing">
-                    <i />
-                    <i />
-                    <i />
-                  </span>
-                ) : (
-                  String(index + 1).padStart(2, "0")
-                )}
-              </span>
-              <div className="track-info">
-                <strong>{t.title}</strong>
-                <Quality track={t} />
-                {t.artist && <small>· {t.artist}</small>}
-              </div>
-              <span className="track-duration">{time(t.duration)}</span>
-            </div>
-          ))
-        ) : (
-          <div className="empty-state">
-            <Music2 size={24} />
-            <strong>{search ? "No matching tracks" : "Playlist empty"}</strong>
-            <span>
-              {search
-                ? "Try a different title or artist."
-                : "Add files or drag them here."}
-            </span>
-          </div>
-        )}
-      </div>
-      <div className="playlist-actions">
-        <button onClick={openFiles}>
-          <Plus size={12} />
-          ADD
-        </button>
-        <button
-          disabled={!selectedVisible}
-          onClick={() => {
-            if (selected !== null && selectedVisible) remove(selected);
-          }}
-        >
-          <Minus size={12} />
-          REMOVE
-        </button>
-        <button
-          disabled={!snapshot.queue.length}
-          onClick={() => act("clear")}
-          title="Clear queue; your library is kept"
-        >
-          <Trash2 size={12} />
-          CLEAR
-        </button>
-        <span />
-        <button disabled={!snapshot.queue.length} onClick={exportList}>
-          SAVE LIST <ArrowDown size={11} />
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function AlbumLibrary({
-  tracks,
-  current,
-  queue,
-  addFolder,
-  busy,
-}: {
-  tracks: Track[];
-  current?: Track;
-  queue: (ts: Track[], play?: boolean) => void;
-  addFolder: () => void;
-  busy: boolean;
-}) {
-  const [search, setSearch] = useState(""),
-    [albumId, setAlbumId] = useState<string | null>(null);
-  const albums = albumsFrom(tracks);
-  const visible = albums.filter((a) =>
-    `${a.title} ${a.artist} ${a.tracks.map((t) => t.title).join(" ")}`
-      .toLocaleLowerCase()
-      .includes(search.toLocaleLowerCase()),
-  );
-  const selected = albums.find((a) => a.id === albumId);
-  return (
-    <div className="album-library">
-      <div className="library-heading">
-        <p>
-          {albums.length} albums <b>·</b> {tracks.length} tracks
-        </p>
-        <button className="primary-button" onClick={addFolder} disabled={busy}>
-          <FolderOpen size={15} />
-          ADD FOLDER
-        </button>
-      </div>
-      <div className="library-search">
-        <Search size={15} />
-        <input
-          aria-label="Search library"
-          placeholder="Search albums, artists, tracks"
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            setAlbumId(null);
-          }}
-        />
-      </div>
-      {selected ? (
-        <div className="album-detail">
-          <button className="text-button" onClick={() => setAlbumId(null)}>
-            ← ALL ALBUMS
-          </button>
-          <div className="album-detail-heading">
-            <Cover cover={selected.cover} title={selected.title} />
-            <div>
-              <h2 title={selected.title}>{selected.title}</h2>
-              <p title={selected.artist}>{selected.artist}</p>
-              <button
-                className="primary-button"
-                onClick={() => queue(selected.tracks, true)}
-              >
-                <Play size={14} />
-                PLAY ALBUM
-              </button>
-              <button
-                className="text-button"
-                onClick={() => queue(selected.tracks)}
-              >
-                + QUEUE
-              </button>
-            </div>
-          </div>
-          {selected.tracks.map((t, i) => (
-            <button
-              className={`album-song ${current?.id === t.id ? "active" : ""}`}
-              key={t.id}
-              title={`${t.title} — ${t.artist}`}
-              onClick={() => queue(selected.tracks.slice(i), true)}
-            >
-              <span>{String(i + 1).padStart(2, "0")}</span>
-              <div className="track-info">
-                <strong>{t.title}</strong>
-                <Quality track={t} />
-              </div>
-              <span>{time(t.duration)}</span>
-              <Play size={12} />
-            </button>
-          ))}
-        </div>
-      ) : visible.length ? (
-        <div className="album-grid">
-          {visible.map((a) => (
-            <article className="album-card" key={a.id}>
-              <button
-                className="album-cover-button"
-                onClick={() => setAlbumId(a.id)}
-                aria-label={`Open ${a.title}`}
-              >
-                <Cover cover={a.cover} title={a.title} />
-                <span className="album-count">{a.tracks.length} TRACKS</span>
-              </button>
-              <div className="album-card-info">
-                <button
-                  onClick={() => setAlbumId(a.id)}
-                  title={`${a.title} — ${a.artist}`}
-                >
-                  <strong>{a.title}</strong>
-                  <small>{a.artist}</small>
-                </button>
-                <IconButton
-                  label={`Play album ${a.title}`}
-                  onClick={() => queue(a.tracks, true)}
-                >
-                  <Play size={14} fill="currentColor" />
-                </IconButton>
-              </div>
-            </article>
-          ))}
-        </div>
-      ) : (
-        <div className="library-empty">
-          <Disc3 size={36} strokeWidth={1} />
-          <h2>{search ? "No matching albums" : "Library empty"}</h2>
-          <p>
-            {search
-              ? "Try another album, artist, or song."
-              : "Add a music folder to scan albums and cover art."}
-          </p>
-          {!search && (
-            <button className="primary-button" onClick={addFolder}>
-              <Plus size={15} />
-              ADD FOLDER
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-function Cover({ cover, title }: { cover: string | null; title: string }) {
-  return cover ? (
-    <img className="album-cover" src={cover} alt={`${title} cover`} />
-  ) : (
-    <div className="album-cover cover-placeholder">
-      <Disc3 size={54} strokeWidth={1} />
-      <span>{title.slice(0, 2).toUpperCase()}</span>
-    </div>
-  );
-}
-
-function SkinGallery({
-  skins: collection,
-  selected,
-  select,
-  scale,
-  setScale,
-  importSkin,
-  error,
-}: {
-  skins: Skin[];
-  selected: string;
-  select: (s: Skin) => void;
-  scale: number;
-  setScale: (scale: number) => void;
-  importSkin: (s: Skin) => void;
-  error: (s: string) => void;
-}) {
-  const input = useRef<HTMLInputElement>(null);
-  return (
-    <div className="skin-gallery">
-      <div className="skin-heading">
-        <label className="interface-scale">
-          Scale
-          <select
-            aria-label="Interface scale"
-            value={scale}
-            onChange={(e) => setScale(+e.target.value)}
-          >
-            <option value="1">100%</option>
-            <option value="1.15">115%</option>
-            <option value="1.3">130%</option>
-          </select>
-        </label>
-        <button
-          className="secondary-button"
-          onClick={() => input.current?.click()}
-        >
-          <Upload size={13} /> IMPORT SKIN
-        </button>
-      </div>
-      <div className="skin-grid">
-        {collection.map((s) => (
-          <button
-            key={s.id}
-            aria-label={s.name}
-            aria-pressed={selected === s.id}
-            className={`skin-card ${selected === s.id ? "chosen" : ""}`}
-            onClick={() => select(s)}
-          >
-            <div
-              className="skin-art"
-              style={{ backgroundImage: `url(${s.preview})` }}
-            >
-              {selected === s.id && (
-                <span className="skin-check">
-                  <Check size={15} />
-                </span>
-              )}
-            </div>
-            <div className="skin-card-caption">
-              <strong>{s.name}</strong>
-              <div className="swatches">
-                {[s.colors.accent, s.colors.secondary, s.colors.bg].map((c) => (
-                  <i key={c} style={{ background: c }} />
-                ))}
-              </div>
-            </div>
-          </button>
-        ))}
-      </div>
-      <input
-        hidden
-        ref={input}
-        type="file"
-        accept=".json,.mikuamp"
-        onChange={async (e) => {
-          const file = e.target.files?.[0];
-          if (file)
-            try {
-              if (file.size > 24_000_000)
-                throw new Error("Skin file is too large.");
-              importSkin(validateSkin(JSON.parse(await file.text())));
-            } catch (err) {
-              error(String(err));
-            }
-          e.target.value = "";
-        }}
-      />
     </div>
   );
 }

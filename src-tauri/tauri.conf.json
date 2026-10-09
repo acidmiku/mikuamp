@@ -16,7 +16,7 @@
         "title": "MikuAmp",
         "width": 500,
         "height": 414,
-        "minWidth": 500,
+        "minWidth": 260,
         "minHeight": 100,
         "decorations": false,
         "resizable": false,

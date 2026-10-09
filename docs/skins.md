@@ -1,6 +1,6 @@
 # MikuAmp skin format v1
 
-A skin is a UTF-8 JSON file, conventionally named `name.mikuamp.json`. The five complete examples are in `output/skin-packs/`. Packs embed their WebP/PNG/JPEG assets as data URIs, so they remain portable after import. Remote asset URLs and arbitrary CSS are rejected.
+A skin is a UTF-8 JSON file, conventionally named `name.mikuamp.json`. The complete examples (one per built-in skin) are in `output/skin-packs/`. Packs embed their WebP/PNG/JPEG assets as data URIs, so they remain portable after import. Remote asset URLs and arbitrary CSS are rejected.
 
 ```json
 {
@@ -9,6 +9,7 @@ A skin is a UTF-8 JSON file, conventionally named `name.mikuamp.json`. The five 
   "name": "My skin",
   "subtitle": "Teal / charcoal",
   "dotMatrix": false,
+  "sketch": false,
   "scene": "data:image/webp;base64,...",
   "chrome": "data:image/webp;base64,...",
   "preview": "data:image/webp;base64,...",
@@ -20,7 +21,7 @@ A skin is a UTF-8 JSON file, conventionally named `name.mikuamp.json`. The five 
 }
 ```
 
-All eight colors are six-digit hex. Each embedded asset must be under approximately 6 MB; the full input file must be under 24 MB. Actual local-storage capacity depends on WebView2, so compact WebP assets are recommended. Failed imports show an error and leave the current skin selected.
+All eight colors are six-digit hex. A light `screen` color turns the display into "paper": the clock, spectrum and other readouts use the `text` color instead of a glow, and visualizers are drawn dark on light. `dotMatrix: true` adds an LED dot texture; `sketch: true` adds hand-drawn styling (handwritten labels using Windows' Segoe Print, uneven pencil outlines, hatched selections and ruled notebook lines in the queue). Each embedded asset must be under approximately 6 MB; the full input file must be under 24 MB. Actual local-storage capacity depends on WebView2, so compact WebP assets are recommended. Failed imports show an error and leave the current skin selected.
 
 The scene is a wide illustration behind the player display; place the character on the right and leave the left half quiet. Chrome is the horizontal title-bar material. Preview is a square thumbnail. Do not bake labels or controls into artwork: MikuAmp draws these independently for Unicode text, scaling, focus and accessible hit targets.
 

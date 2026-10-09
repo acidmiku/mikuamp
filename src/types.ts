@@ -38,6 +38,9 @@ export type Snapshot = {
   shuffle: boolean;
   repeat: "off" | "all" | "one";
   spectrum: number[];
+  waveform?: number[];
+  waveformDuration?: number;
+  visualizationRevision?: number;
   outputRate: number;
   error: string | null;
 };
@@ -59,6 +62,9 @@ export const emptySnapshot = (): Snapshot => ({
   shuffle: false,
   repeat: "off",
   spectrum: Array(32).fill(0),
+  waveform: Array(256).fill(0),
+  waveformDuration: 0.032,
+  visualizationRevision: 0,
   outputRate: 0,
   error: null,
 });

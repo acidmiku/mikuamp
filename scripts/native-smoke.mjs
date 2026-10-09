@@ -93,7 +93,7 @@ if (layout.playerBottom > layout.height + 2)
     `Player controls overflow the window: ${JSON.stringify(layout)}`,
   );
 await page.screenshot({ path: "output/screenshots/native-player.png" });
-await page.getByRole("button", { name: "LIB", exact: true }).click();
+await page.getByRole("button", { name: "Library", exact: true }).click();
 await expect
   .poll(() => context.pages().find((p) => p.url().includes("panel=library")), {
     timeout: 10000,
@@ -109,7 +109,7 @@ await library
   .getByRole("button", { name: "Open 星のかけら", exact: true })
   .click();
 await library.screenshot({ path: "output/screenshots/native-album.png" });
-await library.getByRole("button", { name: "Close album library" }).click();
+await library.getByRole("button", { name: "Close library" }).click();
 await invoke("set_panel_visible", { label: "equalizer", visible: true });
 await expect
   .poll(
@@ -121,11 +121,11 @@ const equalizer = context
   .pages()
   .find((p) => p.url().includes("panel=equalizer"));
 await equalizer.waitForLoadState("domcontentloaded");
-await equalizer.getByRole("button", { name: "TONE", exact: true }).click();
+await equalizer.getByRole("button", { name: "Tone", exact: true }).click();
 await equalizer.screenshot({ path: "output/screenshots/native-tone.png" });
 await equalizer.getByRole("button", { name: "Close equalizer" }).click();
 await page.getByRole("button", { name: "EQ", exact: true }).click();
-await page.getByRole("button", { name: "SKINS", exact: true }).click();
+await page.getByRole("button", { name: /^Skins:/ }).click();
 await expect
   .poll(() => context.pages().find((p) => p.url().includes("panel=skins")), {
     timeout: 10000,

@@ -1,0 +1,18 @@
+{
+  "atlas": "pencil.png",
+  "width": 1536,
+  "height": 1024,
+  "scene": [
+    0,
+    0,
+    1536,
+    753
+  ],
+  "chrome": [
+    0,
+    761,
+    1536,
+    263
+  ],
+  "scale": "CSS logical pixels; raster atlas retained at full resolution"
+}

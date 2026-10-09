@@ -8,6 +8,17 @@ use std::{
 };
 use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 
+/// Every native window. Each must also be listed in capabilities/default.json,
+/// or Tauri refuses its IPC (dragging, closing, playback polling).
+const PANEL_LABELS: [&str; 6] = [
+    "main",
+    "equalizer",
+    "playlist",
+    "library",
+    "visuals",
+    "skins",
+];
+
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq)]
 pub struct Rect {
     pub x: i32,
@@ -186,7 +197,7 @@ pub fn setup(app: &mut tauri::App, data: PathBuf) -> tauri::Result<()> {
         ),
         (
             "playlist",
-            "MikuAmp · Playlist",
+            "MikuAmp · Queue",
             Rect {
                 x,
                 y: y + h + eq_h,
@@ -207,6 +218,17 @@ pub fn setup(app: &mut tauri::App, data: PathBuf) -> tauri::Result<()> {
             false,
         ),
         (
+            "visuals",
+            "MikuAmp · Visuals",
+            Rect {
+                x: x + 50,
+                y: y + 50,
+                width: (720. * dpi) as i32,
+                height: (640. * dpi) as i32,
+            },
+            false,
+        ),
+        (
             "skins",
             "MikuAmp · Skins",
             Rect {
@@ -220,6 +242,10 @@ pub fn setup(app: &mut tauri::App, data: PathBuf) -> tauri::Result<()> {
     ];
     let monitors = main.available_monitors()?;
     for (label, title, default, visible) in defaults {
+        debug_assert!(
+            PANEL_LABELS.contains(&label),
+            "{label} missing from PANEL_LABELS"
+        );
         let old = saved.iter().find(|s| s.label == label);
         let mut r = old.map(|s| s.rect).unwrap_or(default);
         // A disconnected display must never strand a titlebar off screen.
@@ -248,7 +274,7 @@ pub fn setup(app: &mut tauri::App, data: PathBuf) -> tauri::Result<()> {
             .skip_taskbar(true)
             .resizable(label != "equalizer")
             .min_inner_size(
-                if label == "library" || label == "skins" {
+                if ["library", "skins", "visuals"].contains(&label) {
                     560.
                 } else {
                     500.
@@ -316,6 +342,7 @@ pub async fn set_panel_visible(
 #[tauri::command]
 pub async fn fit_panel(
     window: tauri::WebviewWindow,
+    width: Option<f64>,
     height: Option<f64>,
     scale: f64,
     pixel_ratio: f64,
@@ -333,7 +360,11 @@ pub async fn fit_panel(
         };
         let dpi = window.scale_factor().unwrap_or(1.);
         if let Some(height) = height.filter(|h| h.is_finite() && *h > 20. && *h < 2000.) {
-            let width = (500. * scale * dpi).round() as i32;
+            // The main window narrows to the mini player; panels keep the classic width.
+            let base = width
+                .filter(|w| (240. ..=1000.).contains(w))
+                .unwrap_or(500.);
+            let width = (base * scale * dpi).round() as i32;
             let height = (height * pixel_ratio).ceil() as i32;
             native::resize(&state, entry.handle, width, height);
         }
@@ -767,6 +798,18 @@ mod tests {
                 let snapped = magnet(proposed, &targets, AREA, 12);
                 assert_eq!(snapped.y, origin.y + if step <= 12 { 0 } else { step });
             }
+        }
+    }
+    #[test]
+    fn every_panel_window_is_granted_window_permissions() {
+        let caps: serde_json::Value =
+            serde_json::from_str(include_str!("../capabilities/default.json")).unwrap();
+        let windows = caps["windows"].as_array().unwrap();
+        for label in PANEL_LABELS {
+            assert!(
+                windows.iter().any(|w| w == label),
+                "{label} is missing from capabilities/default.json"
+            );
         }
     }
     #[test]

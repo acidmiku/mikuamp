@@ -65,4 +65,4 @@ header.writeUInt16LE(32, 12);
 header.writeUInt32LE(png.length, 14);
 header.writeUInt32LE(22, 18);
 await writeFile("src-tauri/icons/icon.ico", Buffer.concat([header, png]));
-console.log("Five skin atlases sliced; app icons built.");
+console.log("Skin atlases sliced; app icons built.");
